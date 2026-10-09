@@ -1,6 +1,15 @@
 # Jump Hub v4.2 - Changelog
 
-File: `JumpHubClient.lua` (v4.1 -> v4.2, ~6080 dòng, vẫn là MỘT file). Backup bản cũ: `JumpHubClient.v4.1.backup.lua` (và `JumpHubClient.backup.lua` là v4.0 cũ hơn).
+File: `JumpHubClient.lua` (v4.1 -> v4.2, ~6200 dòng, vẫn là MỘT file). Backup bản cũ: `JumpHubClient.v4.1.backup.lua` (và `JumpHubClient.backup.lua` là v4.0 cũ hơn).
+
+## Tính năng mới (bổ sung sau bản v4.2 đầu tiên)
+
+### Ultimate ESP (toggle "Ultimate ESP" trong tab Misc)
+- Viền sáng (Highlight) + tag BillboardGui hiện **tên + khoảng cách (m)** cho mọi nhân vật có Humanoid: player khác màu xanh lá, NPC màu đỏ.
+- Chỉ chạy phía client (Highlight/BillboardGui local), không gửi gì lên server.
+- Tự quét khi bật, tự theo dõi nhân vật mới (respawn/spawn) qua `workspace.DescendantAdded`; tắt toggle là gỡ sạch connection + instance (đúng quy tắc dọn dẹp của script).
+- State `ESPOn` được lưu vào file cài đặt (không nằm trong SaveExclude).
+- Trong game: bật tab Misc → "Ultimate ESP". Lưu ý một số game chặn Highlight (lúc đó chỉ còn tag tên, hoặc không hiện — script không chết nhờ pcall).
 
 Credit: **N4mtapdev** — credit nằm ở hằng số `CREDIT` gần đầu file, in khi khởi động (`[JumpHub] v4.2 | by N4mtapdev`), ở InfoLabel tab UI và Info5 đầu tab Set.
 

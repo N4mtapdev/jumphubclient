@@ -3146,6 +3146,7 @@ local function InstallV5()
 		}) do
 			SaveExclude[k] = true
 		end
+		SaveExclude.ESPOn = false -- TÍNH NĂNG MỚI: ESPOn được lưu (không nằm trong SaveExclude)
 		LoadKeys(AStates, ASliders) -- đọc lại file cho key của đợt này
 
 		-- --- trạng thái nội đợt ---
@@ -3700,7 +3701,8 @@ local function InstallV5()
 		SliderRow(C, "Camera Offset Side", "CamOffX", -8, 8, 29)
 		Info5(C, 30, "Free Cam: WASD di chuyển, Space lên, Ctrl xuống, giữ chuột phải (hoặc kéo màn hình trên mobile) để nhìn. Shift Lock là bản mô phỏng phía client.", 44)
 
-		SliderRow(Mi, "Spin Speed (10 = mặc định)", "SpinRate", 0, 60, 20)
+		ToggleBtn(Mi, "Ultimate ESP", "ESPOn", 21) -- TÍNH NĂNG MỚI: esp player/NPC client-only
+		SliderRow(Mi, "Spin Speed (10 = mặc định)", "SpinRate", 0, 60, 22)
 
 		-- tooltip cho các row của đợt A (mục 126)
 		Tips["hover moves sideways"] = "Cho phép Hover bay ngang khi di chuyển; tắt lại thì đứng yên y như cũ."
@@ -3718,6 +3720,118 @@ local function InstallV5()
 		Tips["reduce camera shake"] = "Giảm rung/tung camera do game tạo ra bằng cách lọc dao động tần suất cao. Không tắt được 100% vì Roblox không có API tắt shake."
 		Tips["camera offset"] = "Đẩy camera sang ngang / lên xuống so với nhân vật (không đổi góc nhìn zoom)."
 		Tips["spin speed (10 = mặc định)"] = "Tốc độ quay của tính năng Spin ở tab Misc; 10 = 0.1 rad/khung hình như bản cũ."
+
+		-- ===== TÍNH NĂNG MỚI: Ultimate ESP (highlight + tag tên/khoảng cách cho player & NPC) =====
+		-- client-only: chỉ tạo Highlight/BillboardGui local, không gửi gì lên server
+		do
+			local ESP_ON_COLOR = Color3.fromRGB(0, 255, 127) -- màu tag cho player khác
+			local ESP_NPC_COLOR = Color3.fromRGB(255, 50, 50) -- màu tag cho NPC
+			local espConns, espSet = {}, {} -- connection RenderStepped từng target + target đã gắn
+			local espWorldConn = nil -- connection DescendantAdded (bật/tắt cùng toggle)
+
+			-- gỡ sạch effect của 1 target (connection + instance)
+			local function espClearOne(model)
+				if not espSet[model] then return end
+				espSet[model] = nil
+				local c = espConns[model]
+				if c then c:Disconnect(); espConns[model] = nil end
+				pcall(function()
+					local h = model:FindFirstChild("UltimateESP")
+					if h then h:Destroy() end
+					local b = model:FindFirstChild("ESP_Tag")
+					if b then b:Destroy() end
+				end)
+			end
+
+			-- gỡ toàn bộ khi tắt toggle (đúng quy tắc: Disconnect + Destroy)
+			local function espClearAll()
+				for model in pairs(espSet) do espClearOne(model) end
+				espSet = {}
+				espConns = {}
+				if espWorldConn then espWorldConn:Disconnect(); espWorldConn = nil end
+			end
+
+			-- target hop le: model co Humanoid va khong phai nhan vat minh
+			local function espIsTarget(model)
+				if not model or not model.Parent then return false end -- kiem tra an toan (instance con song khong)
+				local hum = model:FindFirstChildOfClass("Humanoid")
+				if not hum then return false end
+				local plr = Players:GetPlayerFromCharacter(model)
+				if plr then return plr ~= Player end
+				return true -- NPC (Humanoid không thuộc player nào)
+			end
+
+			-- tạo Highlight + BillboardGui tên/khoảng cách cho 1 model
+			local function espMake(model, color)
+				if not model or not model.Parent or model:FindFirstChild("UltimateESP") then return end
+				local rootPart = model:FindFirstChild("HumanoidRootPart")
+				if not rootPart then return end
+				espSet[model] = true
+
+				local okMake = pcall(function()
+					local highlight = Instance.new("Highlight")
+					highlight.Name = "UltimateESP"
+					highlight.FillColor = color
+					highlight.FillTransparency = 0.4
+					highlight.OutlineColor = Color3.new(1, 1, 1)
+					highlight.Parent = model
+
+					local billboard = Instance.new("BillboardGui")
+					billboard.Name = "ESP_Tag"
+					billboard.Size = UDim2.new(0, 200, 0, 50)
+					billboard.Adornee = model:FindFirstChild("Head") or rootPart
+					billboard.AlwaysOnTop = true
+					billboard.ExtentsOffset = Vector3.new(0, 3, 0)
+					billboard.Parent = model
+
+					local label = Instance.new("TextLabel")
+					label.BackgroundTransparency = 1
+					label.Size = UDim2.new(1, 0, 1, 0)
+					label.TextColor3 = color
+					label.TextStrokeTransparency = 0
+					label.TextSize = 16
+					label.Font = Enum.Font.RobotoMono
+					label.Parent = billboard
+
+					-- cập nhật tên + khoảng cách mỗi frame; tự gỡ khi model chết/respawn
+					espConns[model] = RunService.RenderStepped:Connect(function()
+						if not model.Parent or not rootPart.Parent then
+							espClearOne(model)
+							return
+						end
+						local myRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+						local dist = myRoot and (myRoot.Position - rootPart.Position).Magnitude or 0
+						label.Text = string.format("%s\n[%.1f m]", model.Name, dist)
+					end)
+				end)
+				if not okMake then espClearOne(model) end -- Highlight có thể bị chặn ở một số game
+			end
+
+			-- gắn ESP cho 1 object nếu là target (player khác = xanh, NPC = đỏ)
+			local function espSetup(obj)
+				if not espIsTarget(obj) then return end
+				local color = Players:GetPlayerFromCharacter(obj) and ESP_ON_COLOR or ESP_NPC_COLOR
+				espMake(obj, color)
+			end
+
+			-- toggle: quét hiện tại + theo dõi object mới (respawn/spawn)
+			ToggleRefreshers.ESPOn = function()
+				if States.ESPOn then
+					if not espWorldConn then
+						espWorldConn = workspace.DescendantAdded:Connect(function(obj)
+							task.delay(0.1, espSetup, obj) -- chờ character load đủ
+						end)
+					end
+					for _, obj in ipairs(workspace:GetDescendants()) do
+						task.spawn(espSetup, obj)
+					end
+				else
+					espClearAll()
+				end
+			end
+			table.insert(LateInit, ToggleRefreshers.ESPOn) -- áp dụng ngay cả khi save đã bật sẵn
+			Tips["ultimate esp"] = "Viền sáng + tag tên/khoảng cách cho mọi nhân vật (player khác màu xanh, NPC màu đỏ). Chỉ chạy phía client, tự dọn sạch khi tắt."
+		end
 
 		table.insert(Drivers, MoveDriver)
 		table.insert(CamDrivers, CamDriver)
