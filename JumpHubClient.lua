@@ -1,6 +1,7 @@
 -- Jump Hub v4.2 (v4.1 + 9 fix: hotkey gate, FPS graph, master volume, slider refresh, menu resize, quick chat, keybind, emote, mobile layout)
 -- Created by N4mtapdev
 -- Pure client-side LocalScript. No remotes, no server dependency, no admin/kick code.
+-- (toan bo chi tiet va ghi chu duoc chuyen sang JumpHubComments.md)
 
 local CREDIT = "N4mtapdev" -- [11] credit tác giả (đổi ở đây khi cần)
 print("[JumpHub] v4.2 | by " .. CREDIT)
