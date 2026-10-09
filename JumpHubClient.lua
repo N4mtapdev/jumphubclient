@@ -1,7 +1,9 @@
--- Jump Hub v4.1 (v4.0 + 50 tinh nang con thieu: Movement/Camera/Perf/Light/HUD/Util/UI/Settings/Audio/Fun)
+-- Jump Hub v4.2 (v4.1 + 9 fix: hotkey gate, FPS graph, master volume, slider refresh, menu resize, quick chat, keybind, emote, mobile layout)
+-- Created by N4mtapdev
 -- Pure client-side LocalScript. No remotes, no server dependency, no admin/kick code.
 
-print("[JumpHub] script started")
+local CREDIT = "N4mtapdev" -- [11] credit tác giả (đổi ở đây khi cần)
+print("[JumpHub] v4.2 | by " .. CREDIT)
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -62,7 +64,7 @@ local States = {
 	HideNPCs = false,
 	-- v3.2 extras
 	AntiAFK = false, Fullbright = false, RemoveSky = false, SimplifyWater = false,
-	MuteSounds = false, AutoLowGFX = false, Hotkeys = true,
+	MuteSounds = false, AutoLowGFX = false, Hotkeys = true, ExtraHotkeys = false, -- [1] gate cho phím E/V/P/Z/T/Y/U của v4.1
 	-- v3.3
 	AutoWalk = false, AntiFall = false, ClickTP = false, DashButton = false,
 	LagWarn = false, DistanceCull = false, RemoveFX = false, LightsOff = false,
@@ -141,6 +143,7 @@ local function DeleteSettings()
 end
 
 local Minimized = false
+local ExpandedSize = UDim2.new(0, 320, 0, 380) -- [5] kích thước menu do người dùng kéo (mục 112)
 local JumpCount = 0
 local ParticleCache = {} -- remembers which ParticleEmitters/Trails/Beams we disabled, to restore them
 
@@ -351,6 +354,10 @@ print("[JumpHub] UI fully built, Show(Page1) called")
 
 -- ================= TOGGLE BUTTON CREATOR =================
 local ToggleRefreshers = {} -- stateKey -> refresh function, so Restore/reset buttons can sync switch visuals
+local SliderRefreshers = {} -- [4] sliderKey -> refresh function: làm mới UI sau reset/load/import
+local function RefreshAllSliders() -- [4] gọi sau resetAll/applyBundle/loadLightPreset/LoadKeys
+	for _, f in pairs(SliderRefreshers) do pcall(f) end
+end
 local BatteryPrev = {}     -- values remembered by Battery Saver so turning it off restores them
 
 -- Search registry: every row (toggle/slider/button) registers itself so the "Find" tab
@@ -495,6 +502,14 @@ local function SliderRow(parent, label, sliderKey, min, max, order)
 	local knobStroke = Instance.new("UIStroke", knob)
 	knobStroke.Color = Theme.Accent
 	knobStroke.Thickness = 2
+
+	-- [4] làm mới UI theo Sliders hiện tại (min/max lấy từ closure)
+	SliderRefreshers[sliderKey] = function()
+		local a = math.clamp((Sliders[sliderKey] - min) / (max - min), 0, 1)
+		fill.Size = UDim2.new(a, 0, 1, 0)
+		knob.Position = UDim2.new(a, 0, 0.5, 0)
+		valueLbl.Text = tostring(Sliders[sliderKey])
+	end
 
 	local dragging = false
 
@@ -702,7 +717,7 @@ MinBtn.MouseButton1Click:Connect(function()
 	TabBar.Visible = not Minimized
 	for _, p in ipairs(Pages) do p.Visible = false end
 	if not Minimized then Show(Page1) end
-	tween(Main, {Size = Minimized and UDim2.new(0, 320, 0, 42) or UDim2.new(0, 320, 0, 380)}, 0.22)
+	tween(Main, {Size = Minimized and UDim2.new(0, 320, 0, 42) or ExpandedSize}, 0.22) -- [5] mở lại đúng kích thước đã kéo
 end)
 
 -- ================= GRAPHICS APPLY LOGIC =================
@@ -1240,6 +1255,9 @@ local KeyBinds = {
 	EmoteDance = Enum.KeyCode.Y, EmoteWave = Enum.KeyCode.U,
 }
 
+-- [7] cờ dùng chung: đang chờ gõ phím trong Keybind editor thì handler Menu phải bỏ qua
+local JHFlags = {Rebind = false}
+
 local function ResolveKeybind(code)
 	for action, kc in pairs(KeyBinds) do
 		if kc == code and (action == "Fly" or action == "Hover" or action == "NoClip") then
@@ -1254,6 +1272,7 @@ UIS.InputBegan:Connect(function(input, processed)
 	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
 	if input.KeyCode == KeyBinds.Menu then
+		if JHFlags.Rebind then return end -- [7] đang đổi phím: không ẩn menu
 		Main.Visible = not Main.Visible
 		return
 	end
@@ -2486,17 +2505,16 @@ local function InstallV4()
 	SliderRow(PageUI, "Menu Size %", "MenuPct", 70, 130, 3)
 	SliderRow(PageUI, "Custom Accent: Red", "AccR", 0, 255, 4)
 	SliderRow(PageUI, "Custom Accent: Green", "AccG", 0, 255, 5)
-	SliderRow(PageUI, "Custom Accent: Blue", "AccB", 0, 255, 6)
-	ActionBtn(PageUI, "Apply Custom Accent", 7, function()
-		local c = Color3.fromRGB(Sliders.AccR, Sliders.AccG, Sliders.AccB)
+	SliderRow(PageUI, "Custom Accent: Blue", "AccB", 0, 255, 6)		ActionBtn(PageUI, "Apply Custom Accent", 7, function()
+			RefreshAllSliders() -- [4] Apply Custom Accent cập nhật đúng các slider
+			local c = Color3.fromRGB(Sliders.AccR, Sliders.AccG, Sliders.AccB)
 		local h, s, v = c:ToHSV()
 		Themes[customIdx].Accent = c
 		Themes[customIdx].AccentAlt = Color3.fromHSV((h + 0.12) % 1, s, v)
 		ThemeIndex = customIdx
 		ApplyTheme(customIdx)
 		return "Custom theme applied"
-	end)
-	InfoLabel(PageUI, 8, "Jump Hub v4.1. Use 'Change Theme' on the Misc tab to cycle all themes (including Custom). Swipe the tab bar sideways to see all tabs.", 56)
+	end)		InfoLabel(PageUI, 8, "Jump Hub v4.2 | Created by " .. CREDIT .. ". Use 'Change Theme' on the Misc tab to cycle all themes (including Custom). Swipe the tab bar sideways to see all tabs.", 56)
 
 	-- ---------- 6. runtime state + logic ----------
 	local Prev = {}
@@ -3087,12 +3105,13 @@ local function InstallV5()
 				if type(v) == "number" then Sliders[k] = v end
 			end
 		end)
+		RefreshAllSliders() -- [4] thanh trượt nhảy theo giá trị vừa nạp
 	end
 
 	-- ===== 7. động lực chạy chung =====
 	local Drivers, CamDrivers, Slows, LateInit = {}, {}, {}, {}
-	local ctx = {now = 0, dt = 0, char = nil, hum = nil, root = nil, cam = nil}
-	local RebindActive = false -- Keybind editor đang chờ gõ phím (mục 136)
+	local ctx = {now = 0, dt = 0, char = nil, hum = nil, root = nil, cam = nil}		local RebindActive = false -- Keybind editor đang chờ gõ phím (mục 136); [7] dùng chung cờ với JHFlags
+		local PlayEmote -- [8] khai báo trước để đợt B (emote wheel) dùng được; gán thật trong đợt D
 	local FavRefresh = nil     -- làm mới danh sách Yêu thích (mục 125)
 
 	-- ==================== ĐỢT A: Movement + Camera ====================
@@ -3216,7 +3235,8 @@ local function InstallV5()
 			local bar = Instance.new("Frame")
 			bar.Size = UDim2.new(0, 260, 0, 16)
 			bar.AnchorPoint = Vector2.new(0.5, 1)
-			bar.Position = UDim2.new(0.5, 0, 1, -34)
+			-- [5] thanh stamina trên mobile nhích lên trên nút ảo jump của game
+		bar.Position = UIS.TouchEnabled and UDim2.new(0.5, 0, 1, -124) or UDim2.new(0.5, 0, 1, -34)
 			bar.BackgroundColor3 = Theme.Background
 			bar.BackgroundTransparency = 0.25
 			bar.BorderSizePixel = 0
@@ -3246,6 +3266,7 @@ local function InstallV5()
 		-- nút ảo mobile: Crouch / Slide / Air Dash (cao 46px >= 36px)
 		local function buildMovePad()
 			if movePad then return end
+			-- [9] vị trí có thể bị driver dịch trái khi FlyPad hiện (set lại mỗi frame ở dưới)
 			local pad = Instance.new("Frame")
 			pad.Size = UDim2.new(0, 150, 0, 154)
 			pad.AnchorPoint = Vector2.new(1, 1)
@@ -3494,6 +3515,11 @@ local function InstallV5()
 			if edge("padFree", wantFree) then
 				if wantFree then buildFreePad() else killFreePad() end
 			end
+			-- [9] FlyPad nằm ở (1,-16 / 0.55); MovePad/FreePad góc dưới phải phải dịch trái khi FlyPad hiện
+			local flyPadOn = States.Fly and touch
+			local padX = flyPadOn and UDim2.new(1, -88, 1, -16) or UDim2.new(1, -16, 1, -16)
+			if movePad then movePad.Position = padX end
+			if freePad then freePad.Position = padX end
 			if movePad then movePad.Visible = wantMove and not wantFree end
 			if freePad then freePad.Visible = wantFree end
 		end
@@ -3618,15 +3644,16 @@ local function InstallV5()
 		end)
 
 		-- phím tắt đợt A (bỏ qua khi đang gõ chat / đang rebind)
+		-- [1] mọi phím của v4.1 yêu cầu States.Hotkeys VÀ States.ExtraHotkeys đều bật
 		UIS.InputBegan:Connect(function(input, processed)
 			if RebindActive or processed then return end
 			if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-			if not States.Hotkeys then return end
+			if not States.Hotkeys or not States.ExtraHotkeys then return end
 			local code = input.KeyCode
 			if code == KeyBinds.AirDash then
-				Notify(DoAirDash(), Theme.AccentAlt)
+				if States.AirDash then Notify(DoAirDash(), Theme.AccentAlt) end -- [1] feature tắt thì im lặng
 			elseif code == KeyBinds.Slide then
-				Notify(StartSlide(), Theme.AccentAlt)
+				if States.Slide then Notify(StartSlide(), Theme.AccentAlt) end -- [1]
 			elseif code == KeyBinds.FreeCam then
 				States.FreeCam = not States.FreeCam
 				if ToggleRefreshers.FreeCam then ToggleRefreshers.FreeCam() end
@@ -3640,7 +3667,7 @@ local function InstallV5()
 
 		-- ===== hàng UI đợt A =====
 		local M, C, Mi = Pg("Move"), Pg("Cam"), Pg("Misc")
-		Info5(M, 19, "Phím: C cúi người | V trượt | E air dash | P free cam | Z shift lock | T emote wheel (đổi trong tab Set). Trên mobile hãy bật feature rồi dùng nút ảo góc phải.", 44)
+		Info5(M, 19, "Phím: C cúi người | V trượt | E air dash | P free cam | Z shift lock | T emote wheel (đổi trong tab Set). Lưu ý: các phím trên chỉ chạy khi bật Extra Hotkeys ở tab Set. Trên mobile hãy bật feature rồi dùng nút ảo góc phải.", 44)
 		ToggleBtn(M, "Hover Moves Sideways", "HoverMove", 20)
 		ToggleBtn(M, "Air Control", "AirCtl", 21)
 		SliderRow(M, "Air Control %", "AirCtlPct", 0, 100, 22)
@@ -3724,10 +3751,9 @@ local function InstallV5()
 		local pingG, fpsG, miniG, keysUi, cpsLbl, wheel, clipPanel = nil, nil, nil, nil, nil, nil, nil
 		local clickTimes = {}
 		local inpConn, worldConn, pgConn = nil, nil, nil
-		local npcSet, frozenTracks = {}, {}
-		local frames = 0
-		local lastFpsT = 0
-		local pingVals, fpsVals = {}, {}
+		local npcSet, frozenTracks = {}, {}			local frames = 0
+			local lastFpsT = tick() -- [2] khởi tạo = tick() để mẫu FPS đầu không bị lệch
+			local pingVals, fpsVals = {}, {}
 
 		-- tạo / hủy 1 effect trong Lighting (giống EnsureEffect của v4.0)
 		local function ensureFx(class, name, on)
@@ -3746,7 +3772,9 @@ local function InstallV5()
 		end
 
 		-- ===== 103: gửi chat qua TextChatService (KHÔNG dùng Remote) =====
+		-- [6] toggle Quick Chat điều khiển thật: tắt thì mọi nút gửi chat/emote báo bật Quick Chat trước
 		local function SendChat(text)
+			if not States.ChatQuick then return "Bật Quick Chat trước" end
 			if type(text) ~= "string" or text == "" then return "Enter text" end
 			if #text > 200 then text = text:sub(1, 200) end
 			local ok, err = pcall(function()
@@ -3762,6 +3790,65 @@ local function InstallV5()
 			return ok and "Sent!" or "Không hỗ trợ"
 		end
 
+		-- [9] WidgetStack: gom các widget HUD trái vào 1 cột (UIListLayout) dưới nút JH/DASH,
+		-- hết chồng lên nhau; từng widget vẫn kéo được và nhớ vị trí trong phiên
+		local WidgetStack = Instance.new("Frame")
+		WidgetStack.Name = "JH_WidgetStack"
+		WidgetStack.AnchorPoint = Vector2.new(0, 0)
+		WidgetStack.Position = UDim2.new(0, 16, 0.35, 120) -- dưới nút JH/DASH bên trái
+		WidgetStack.Size = UDim2.new(0, 164, 0, 0)
+		WidgetStack.BackgroundTransparency = 1
+		WidgetStack.Parent = V5Gui
+		do
+			local lay = Instance.new("UIListLayout", WidgetStack)
+			lay.FillDirection = Enum.FillDirection.Vertical
+			lay.Padding = UDim.new(0, 8)
+			lay.SortOrder = Enum.SortOrder.LayoutOrder
+		end
+		local stackOrder = 0
+		-- đưa 1 widget vào stack (hoặc vị trí đã kéo trước đó); trả về frame để caller giữ tham chiếu
+		local stackPosMemo = {} -- tên widget -> UDim2 vị trí đã kéo trong phiên
+		local stackConns = {} -- giữ connection kéo widget để dọn khi block kết thúc
+		local function addToStack(name, f, defaultParent)
+			stackOrder += 1
+			if stackPosMemo[name] then
+				f.Position = stackPosMemo[name]
+				f.Parent = defaultParent or V5Gui
+			else
+				f.Position = UDim2.new(0, 0, 0, 0)
+				f.Parent = WidgetStack
+			end
+			-- kéo được (chuột + touch); thả thì ghi nhớ vị trí và thoát khỏi stack
+			f.Active = true
+			local dragConn = f.InputBegan:Connect(function(inp)
+				local t = inp.UserInputType
+				if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+				local start = inp.Position
+				local startPos = f.Position
+				if f.Parent ~= WidgetStack then return end
+				f.Parent = V5Gui
+				f.AnchorPoint = Vector2.new(0, 0)
+				local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1024, 768)
+				f.Position = UDim2.new(0, math.clamp(f.AbsolutePosition.X, 0, vp.X - 60), 0, math.clamp(f.AbsolutePosition.Y, 0, vp.Y - 40))
+				local moveConn, endConn
+				moveConn = UIS.InputChanged:Connect(function(m)
+					if m.UserInputType == Enum.UserInputType.MouseMovement or m.UserInputType == Enum.UserInputType.Touch then
+						local dx = m.Position.X - start.X
+						local dy = m.Position.Y - start.Y
+						f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + dx, startPos.Y.Scale, startPos.Y.Offset + dy)
+					end
+				end)
+				endConn = UIS.InputEnded:Connect(function(m)
+					if m.UserInputType == Enum.UserInputType.MouseButton1 or m.UserInputType == Enum.UserInputType.Touch then
+						moveConn:Disconnect(); endConn:Disconnect()
+						stackPosMemo[name] = f.Position -- nhớ vị trí trong phiên
+					end
+				end)
+			end)
+			table.insert(stackConns, dragConn)
+			return f
+		end
+
 		-- ===== 88 / 95: biểu đồ dạng thanh dọc =====
 		local function buildGraph(title, y, color)
 			local f = Instance.new("Frame")
@@ -3770,7 +3857,8 @@ local function InstallV5()
 			f.BackgroundColor3 = Theme.Background
 			f.BackgroundTransparency = 0.3
 			f.BorderSizePixel = 0
-			f.Parent = V5Gui
+			-- [9] vào WidgetStack thay vì đặt cứng
+			addToStack(title:lower():gsub(" %(.-%)$", "") .. "graph", f)
 			Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
 			local lbl = Instance.new("TextLabel", f)
 			lbl.Size = UDim2.new(1, -8, 0, 16)
@@ -3812,7 +3900,7 @@ local function InstallV5()
 			f.BackgroundColor3 = Theme.Background
 			f.BackgroundTransparency = 0.3
 			f.BorderSizePixel = 0
-			f.Parent = V5Gui
+			addToStack("minimap", f) -- [9]
 			Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
 			local st = Instance.new("UIStroke", f)
 			st.Color = Theme.Accent
@@ -3846,6 +3934,8 @@ local function InstallV5()
 		}
 		local function buildKeys()
 			if keysUi then return end
+			-- [9] Keystrokes chỉ dành cho PC: thiết bị touch tự tắt (không có bàn phím)
+			if UIS.TouchEnabled and not UIS.KeyboardEnabled then return end
 			local f = Instance.new("Frame")
 			f.Size = UDim2.new(0, 150, 0, 136)
 			f.AnchorPoint = Vector2.new(0, 1)
@@ -3896,7 +3986,8 @@ local function InstallV5()
 			f.BackgroundColor3 = Theme.Background
 			f.BackgroundTransparency = 0.3
 			f.BorderSizePixel = 0
-			f.Parent = V5Gui
+			addToStack("cps", f) -- [9]
+			f.AnchorPoint = Vector2.new(0, 0)
 			Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
 			local lbl = Instance.new("TextLabel", f)
 			lbl.Size = UDim2.new(1, -12, 1, 0)
@@ -3941,7 +4032,7 @@ local function InstallV5()
 				local st = Instance.new("UIStroke", b)
 				st.Color = Theme.Accent
 				b.MouseButton1Click:Connect(function()
-					Notify(SendChat("/e " .. cmd), Theme.On)
+					Notify(PlayEmote(cmd), Theme.On) -- [8] dùng PlayEmote chung
 				end)
 			end
 			local c = Instance.new("TextButton", f)
@@ -4323,13 +4414,16 @@ local function InstallV5()
 
 		-- ===== driver của đợt B =====
 		local function BDriver(dt, c)
+			frames += 1 -- [2] đếm frame MỖI frame (trước nằm ở BSlow nên FPS luôn hiện ~4)
 			-- widget bật/tắt (tạo khi bật, Destroy khi tắt)
 			if edgeB("ping", States.HUDPing) then
 				if States.HUDPing then pingG = buildGraph("PING (ms)", 8, Theme.AccentAlt)
 				elseif pingG then pingG.frame:Destroy(); pingG = nil end
 			end
 			if edgeB("fps", States.HUDFPS) then
-				if States.HUDFPS then fpsG = buildGraph("FPS", 80, Theme.On)
+				if States.HUDFPS then
+					fpsG = buildGraph("FPS", 80, Theme.On)
+					table.clear(fpsVals) -- [2] bật lại thì reset mẫu cũ
 				elseif fpsG then fpsG.frame:Destroy(); fpsG = nil end
 			end
 			if edgeB("mini", States.HUDMini) then
@@ -4393,7 +4487,7 @@ local function InstallV5()
 				drawGraph(pingG, pingVals, 300)
 			end
 
-			-- 95: FPS
+			-- 95: FPS (frames đã được đếm trong BDriver mỗi frame)
 			if fpsG then
 				local fps = 0
 				if elapsed > 0 then fps = math.floor(frames / elapsed + 0.5) end
@@ -4402,8 +4496,6 @@ local function InstallV5()
 				if #fpsVals > 40 then table.remove(fpsVals, 1) end
 				fpsG.label.Text = "FPS " .. fps
 				drawGraph(fpsG, fpsVals, 120)
-			else
-				frames = 0
 			end
 
 			-- 90: minimap
@@ -4467,7 +4559,11 @@ local function InstallV5()
 		ToggleBtn(L, "Sun Rays", "OwnSunRays", 32)
 		SliderRow(L, "Sun Rays Intensity (x10)", "SunInt", 1, 30, 33)
 		ActionBtn(L, "Save Light Preset", 34, saveLightPreset)
-		ActionBtn(L, "Load Light Preset", 35, loadLightPreset)
+		ActionBtn(L, "Load Light Preset", 35, function()
+			local msg = loadLightPreset()
+			RefreshAllSliders() -- [4] preset đổi Sliders
+			return msg
+		end)
 
 		ToggleBtn(F, "Reduce Mesh Detail (RenderFidelity)", "LowMesh", 30)
 		ToggleBtn(F, "Freeze Far NPC Animations", "FarAnim", 31)
@@ -4501,8 +4597,8 @@ local function InstallV5()
 		end
 
 		ToggleBtn(FN, "Emote Wheel", "EmoteWheel", 20)
-		ActionBtn(FN, "Emote: Wave", 21, function() return SendChat("/e wave") end)
-		ActionBtn(FN, "Emote: Dance", 22, function() return SendChat("/e dance") end)
+		ActionBtn(FN, "Emote: Wave", 21, function() return PlayEmote("wave") end) -- [8] dùng PlayEmote chung
+		ActionBtn(FN, "Emote: Dance", 22, function() return PlayEmote("dance") end) -- [8]
 
 		-- tooltip đợt B
 		Tips["ping graph"] = "Biểu đồ ping 40 mẫu gần nhất (mỗi mẫu 0.25 giây)."
@@ -4517,7 +4613,7 @@ local function InstallV5()
 		Tips["freeze far npc animations"] = "Dừng animation của NPC/monster ở xa hơn khoảng cách để giảm CPU; lại gần là tự chạy lại."
 		Tips["hide game guis by name"] = "Ẩn các ScreenGui của game khớp tên bạn nhập (vd: leaderboard, shop). Tắt toggle là hiện lại ngay."
 		Tips["clipboard history"] = "Ghi lại các bản copy của v4.1 (copy vị trí, JobId, mã...) để dùng lại; bấm 1 mục là copy lại."
-		Tips["quick chat (textchatservice)"] = "Gửi tin nhắn qua TextChatService:SendAsync - API chính thức, không dùng RemoteEvent."
+		Tips["quick chat (textchatservice)"] = "Cổng chung cho mọi tính năng gửi chat/emote của hub: bật toggle này trước, nếu không nút Send to Chat và Emote Wheel sẽ báo 'Bật Quick Chat trước'."
 		Tips["emote wheel"] = "Bánh xe 6 emote ở giữa màn hình; gửi lệnh /e qua chat. Phím tắt T."
 
 		table.insert(Drivers, BDriver)
@@ -4551,6 +4647,13 @@ local function InstallV5()
 				if type(d.Favorites) == "table" then Favorites = d.Favorites end
 				if type(d.AutoOn) == "table" then AutoOn = d.AutoOn end
 				if type(d.Lang) == "string" then Lang = d.Lang end
+				-- [5] nạp kích thước menu đã lưu (mục 112)
+				if type(d.MenuSize) == "table" and type(d.MenuSize.w) == "number" and type(d.MenuSize.h) == "number" then
+					local w = math.clamp(math.floor(d.MenuSize.w), 280, 560)
+					local h = math.clamp(math.floor(d.MenuSize.h), 300, 720)
+					ExpandedSize = UDim2.new(0, w, 0, h)
+					if not Minimized then Main.Size = ExpandedSize end
+				end
 				if type(d.KeyBinds) == "table" then
 					for action, code in pairs(d.KeyBinds) do
 						if KeyBinds[action] ~= nil and type(code) == "string" then
@@ -4568,16 +4671,24 @@ local function InstallV5()
 			local ok = pcall(function()
 				writefile(V5FILE, HttpService:JSONEncode({
 					Favorites = Favorites, AutoOn = AutoOn, Lang = Lang, KeyBinds = kb,
+					-- [5] lưu kích thước menu đã kéo (mục 112)
+					MenuSize = {w = ExpandedSize.X.Offset, h = ExpandedSize.Y.Offset},
 				}))
 			end)
 			return ok and "Da luu!" or "Save failed"
 		end
 		loadV5()
 
-		-- 138: tự bật các tính năng đã chọn ngay khi vào game
-		for _, k in ipairs(AutoOn) do
-			if States[k] ~= nil then States[k] = true end
-		end
+		-- [9] 138: AutoOn chỉ ghi States, việc áp dụng thật chuyển sang LateInit
+		-- (sau khi mọi State của cả 4 đợt đã được tạo, kể cả key đợt D)
+		table.insert(LateInit, function()
+			for _, k in ipairs(AutoOn) do
+				if States[k] ~= nil then
+					States[k] = true
+					if ToggleRefreshers[k] then ToggleRefreshers[k]() end
+				end
+			end
+		end)
 
 		local prevC = {}
 		local function edgeC(k, v)
@@ -4934,8 +5045,10 @@ local function InstallV5()
 			local cam = workspace.CurrentCamera
 			local vs = (cam and cam.ViewportSize) or Vector2.new(1024, 768)
 			local touch = UIS.TouchEnabled
-			-- thu nhỏ menu vừa màn hình bé (không đổi Size của Main để không mất hiệu ứng minimize)
-			local factor = math.clamp(math.min(1, (vs.Y - 16) / 384, (vs.X - 16) / 340), 0.55, 1)
+			-- [5] tôn trọng kích thước người dùng đã kéo: scale chỉ thu khi menu vượt viewport
+			local wantW = math.min(ExpandedSize.X.Offset * MenuScale, vs.X - 16) / math.max(1, ExpandedSize.X.Offset)
+			local wantH = math.min(ExpandedSize.Y.Offset * MenuScale, vs.Y - 16) / math.max(1, ExpandedSize.Y.Offset)
+			local factor = math.clamp(math.min(1, wantW, wantH), 0.55, 1)
 			MainScale.Scale = MenuScale * factor
 			local key = tostring(math.floor(vs.X)) .. "x" .. tostring(math.floor(vs.Y)) .. ":" .. tostring(touch)
 			if key == respKey then return end
@@ -4959,6 +5072,7 @@ local function InstallV5()
 		local function startRebind(action, el)
 			if RebindActive then return end
 			RebindActive = true
+			JHFlags.Rebind = true -- [7] cờ dùng chung: handler Menu đầu file cũng phải bỏ qua
 			local wasHot = States.Hotkeys
 			States.Hotkeys = false -- tạm khóa để code v4.0 không bắt phím trong lúc chờ
 			if ToggleRefreshers.Hotkeys then ToggleRefreshers.Hotkeys() end
@@ -4968,16 +5082,29 @@ local function InstallV5()
 				if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 				cn:Disconnect()
 				RebindActive = false
+				JHFlags.Rebind = false -- [7]
 				States.Hotkeys = wasHot
 				if ToggleRefreshers.Hotkeys then ToggleRefreshers.Hotkeys() end
-				if input.KeyCode == Enum.KeyCode.Escape then
-					Notify("Da huy", Theme.SubText)
-				else
-					KeyBinds[action] = input.KeyCode
-					saveV5()
-					Notify(action .. " -> " .. input.KeyCode.Name, Theme.On)
+			if input.KeyCode == Enum.KeyCode.Escape then
+				Notify("Da huy", Theme.SubText)
+			elseif input.KeyCode == Enum.KeyCode.Tab or input.KeyCode == Enum.KeyCode.Backquote
+				or input.KeyCode == Enum.KeyCode.Return then
+				-- [7] chặn phím hệ thống nguy hiểm (Escape chỉ để hủy)
+				Notify("Khong the gan phim nay", Theme.Danger)
+			else
+				-- [7] chống trùng: phím đã dùng cho action khác thì tự hoán đổi
+				for other, kc in pairs(KeyBinds) do
+					if other ~= action and kc == input.KeyCode then
+						KeyBinds[other] = KeyBinds[action]
+						Notify("Hoan doi phim: " .. other .. " -> " .. KeyBinds[action].Name, Theme.SubText)
+						break
+					end
 				end
-				refreshBindRows()
+				KeyBinds[action] = input.KeyCode
+				saveV5()
+				Notify(action .. " -> " .. input.KeyCode.Name, Theme.On)
+			end
+			refreshBindRows()
 			end)
 		end
 
@@ -5121,6 +5248,7 @@ local function InstallV5()
 				ApplyTheme(ThemeIndex)
 			end
 			for _, r in pairs(ToggleRefreshers) do r() end
+			RefreshAllSliders() -- [4] profile/import đổi Sliders phải làm mới UI
 			return n
 		end
 
@@ -5155,6 +5283,7 @@ local function InstallV5()
 				if typeof(delfile) == "function" and isfile(V5FILE) then delfile(V5FILE) end
 			end)
 			for _, r in pairs(ToggleRefreshers) do r() end
+			RefreshAllSliders() -- [4] reset xong thanh trượt phải về mặc định
 			saveV5()
 			refreshBindRows()
 			refreshFavList()
@@ -5164,7 +5293,7 @@ local function InstallV5()
 		end
 
 		-- ===== hàng UI đợt C (tab Set) =====
-		Info5(PageSet, 1, "Jump Hub v4.1 - 50 tinh nang moi nam trong InstallV5 (pcall); neu loi thi phan v4.0 van chay binh thuong.", 40)
+		Info5(PageSet, 1, "Jump Hub v4.2 - Created by " .. CREDIT .. " - 50 tinh nang moi nam trong InstallV5 (pcall); neu loi thi phan v4.0 van chay binh thuong.", 40)
 		do
 			local ver = Instance.new("ScrollingFrame")
 			ver.Size = UDim2.new(1, 0, 0, 150)
@@ -5190,8 +5319,8 @@ local function InstallV5()
 				"v4.1 Giao dien: theme sang, icon tab, danh sach yeu thich, tooltip, ripple, responsive",
 				"v4.1 Can dat: tai cau hinh khi vao game, nhieu profile, xuat/nhap chuoi, reset, keybind editor, Viet/Anh, auto-start, log loi",
 				"v4.1 Am thanh/Vui: am luong tong, tat nhac nen game, am click UI, phim tat emote, Konami",
-				"KHONG KHA THI - muc 112: doi kich thuoc cua so game. Roblox khong co API cho script.",
-				"KHONG KHA THI 100% - muc 38: tat rung man hinh. Chi giam duoc bang bo loc (xem tooltip).",
+				"v4.2: resize menu keo duoc o goc duoi phai, gate Extra Hotkeys, FPS graph dung, slider refresh, quick chat gate, keybind an toan, emote PlayEmote, layout mobile",
+				"Muc 38: chua tat duoc rung man hinh 100% - chi giam duoc bang bo loc (xem tooltip).",
 			}
 			for i, line in ipairs(lines) do
 				local l = Instance.new("TextLabel", ver)
@@ -5210,12 +5339,15 @@ local function InstallV5()
 		ActionBtn(PageSet, "Fit Menu to Screen", 4, function()
 			respKey = ""
 			ApplyResponsive()
+			RefreshAllSliders() -- [4] scale doi thi track đổi theo
 			return "Da fit man hinh!"
 		end)
 		ToggleBtn(PageSet, "Light Theme", "LightUI", 5)
 		ToggleBtn(PageSet, "Tab Icons", "TabIcons", 6)
 		ToggleBtn(PageSet, "Tooltips", "Tooltips", 7)
 		ToggleBtn(PageSet, "Ripple Effect", "Ripple", 8)
+		-- [1] tổng công tắc cho các phím của v4.1 (E/V/P/Z/T/Y/U); cho phép lưu vào file cài đặt
+		ToggleBtn(PageSet, "Extra Hotkeys (E/V/P/Z/T/Y/U)", "ExtraHotkeys", 9)
 		ActionBtn(PageSet, "Language: Tieng Viet / English", 9, function()
 			Lang = (Lang == "vi") and "en" or "vi"
 			ApplyLang(true)
@@ -5258,6 +5390,22 @@ local function InstallV5()
 			local ok, data = pcall(function() return HttpService:JSONDecode(importBox.Text) end)
 			if not ok or type(data) ~= "table" then return "Chuoi khong hop le" end
 			return ("Da ap %d gia tri"):format(applyBundle(data))
+		end)
+		-- [5] mục 112 giờ LÀM ĐƯỢC: resize cửa sổ menu Jump Hub (không phải cửa sổ game)
+		ActionBtn(PageSet, "Reset Menu Size", 25, function()
+			ExpandedSize = UDim2.new(0, 320, 0, 380)
+			if not Minimized then Main.Size = ExpandedSize end
+			local ok = pcall(function()
+				if typeof(writefile) == "function" then
+					local d = {}
+					if typeof(isfile) == "function" and isfile(V5FILE) then
+						d = HttpService:JSONDecode(readfile(V5FILE)) or {}
+					end
+					d.MenuSize = nil
+					writefile(V5FILE, HttpService:JSONEncode(d))
+				end
+			end)
+			return ok and "Da reset kich thuoc menu!" or "Da reset (khong luu file)"
 		end)
 		ActionBtn(PageSet, "Reset ALL to Defaults", 21, resetAll)
 		local autoLbl = Info5(PageSet, 24, "", 36)
@@ -5338,7 +5486,49 @@ local function InstallV5()
 			refreshLog()
 			return "Da xoa log"
 		end)
-		Info5(PageSet, 49, "MUC 112 - DOI KICH THUOC CUA SO GAME: KHONG KHA THI. Roblox khong cung cap API cho script doi kich thuoc cua so/viewport (chi Roblox moi lam duoc). Thay vao do dung 'Menu Size %' + 'Fit Menu to Screen' de doi kich thuoc menu Jump Hub.", 76)
+		Info5(PageSet, 49, "MUC 112 - RESIZE CUA SO MENU: keo o goc duoi phai cua menu de doi kich thuoc (280x300 den 560x720). Kich thuoc duoc luu lai cho lan sau; nut Reset Menu Size tra ve mac dinh. 'Menu Size %' van phong dai them.", 60)
+
+		-- [5] mục 112: tay nắm kéo góc dưới phải của Main (chuột + touch), 280x300..560x720
+		do
+			local grip = Instance.new("Frame", Main)
+			grip.Name = "JH_ResizeGrip"
+			grip.Size = UDim2.new(0, 24, 0, 24)
+			grip.AnchorPoint = Vector2.new(1, 1)
+			grip.Position = UDim2.new(1, 0, 1, 0)
+			grip.BackgroundColor3 = Theme.Off
+			grip.BackgroundTransparency = 0.35
+			grip.BorderSizePixel = 0
+			grip.ZIndex = 50
+			Instance.new("UICorner", grip).CornerRadius = UDim.new(0, 6)
+			local gst = Instance.new("UIStroke", grip)
+			gst.Color = Theme.Accent
+			gst.Thickness = 1
+			grip.Active = true
+			grip.InputBegan:Connect(function(inp)
+				local t = inp.UserInputType
+				if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+				Minimized = false -- kéo = coi như mở
+				TabBar.Visible = true
+				local start = inp.Position
+				local startW, startH = ExpandedSize.X.Offset, ExpandedSize.Y.Offset
+				local mv, en
+				mv = UIS.InputChanged:Connect(function(m)
+					if m.UserInputType == Enum.UserInputType.MouseMovement or m.UserInputType == Enum.UserInputType.Touch then
+						local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1024, 768)
+						local w = math.clamp(startW + (m.Position.X - start.X), 280, math.min(560, vp.X - 20))
+						local h = math.clamp(startH + (m.Position.Y - start.Y), 300, math.min(720, vp.Y - 20))
+						ExpandedSize = UDim2.new(0, w, 0, h)
+						Main.Size = ExpandedSize
+					end
+				end)
+				en = UIS.InputEnded:Connect(function(m)
+					if m.UserInputType == Enum.UserInputType.MouseButton1 or m.UserInputType == Enum.UserInputType.Touch then
+						mv:Disconnect(); en:Disconnect()
+						saveV5() -- [5] lưu kích thước vào JumpHub_V5.json (có pcall trong saveV5)
+					end
+				end)
+			end)
+		end
 
 		-- dịch thêm các row mới của v4.1
 		LangVI["light theme"] = "Theme Sáng"
@@ -5412,24 +5602,28 @@ local function InstallV5()
 		-- ===== 141: âm lượng tổng (nhân toàn bộ Sound/AudioEmitter với 1 hệ số) =====
 		local volCache = {}
 		local lastMasterPct = -1
+		-- [3] CHỈ xử lý Sound (AudioEmitter không có Volume); property access đều bọc pcall
 		local function masterTouch(s)
-			if volCache[s] == nil then volCache[s] = s.Volume end -- lưu giá trị gốc
-			s.Volume = volCache[s] * (Sliders.MasterPct / 100)
+			pcall(function()
+				if volCache[s] == nil then volCache[s] = s.Volume end -- lưu giá trị gốc
+				s.Volume = volCache[s] * (Sliders.MasterPct / 100)
+			end)
 		end
 		local function applyMaster(on)
 			if on then
 				for _, root in ipairs({workspace, SoundService}) do
 					for _, v in ipairs(root:GetDescendants()) do
-						if v:IsA("Sound") or v:IsA("AudioEmitter") then masterTouch(v) end
+						if v:IsA("Sound") then masterTouch(v) end -- [3] bỏ AudioEmitter
 					end
+				end				else
+					for s, orig in pairs(volCache) do
+						pcall(function() -- [3] bọc pcall khi khôi phục (sound có thể đã đổi)
+							if s and s.Parent then s.Volume = orig end
+						end)
+					end
+					table.clear(volCache)
 				end
-			else
-				for s, orig in pairs(volCache) do
-					if s and s.Parent then s.Volume = orig end -- khôi phục đúng giá trị cũ
-				end
-				table.clear(volCache)
 			end
-		end
 
 		-- ===== 142: tắt nhạc nền game (đoán theo tên Sound / SoundGroup) =====
 		local musicWords = {"music", "bgm", "theme", "soundtrack", "background"}
@@ -5506,7 +5700,7 @@ local function InstallV5()
 		local dConn1, dConn2, clickConn = nil, nil, nil
 		local clickConns = {}
 		local function onSoundAdded(v)
-			if States.MasterVol and (v:IsA("Sound") or v:IsA("AudioEmitter")) then masterTouch(v) end
+			if States.MasterVol and v:IsA("Sound") then masterTouch(v) end -- [3] chỉ Sound
 			if States.MuteMusic and isMusic(v) then musicTouch(v) end
 		end
 		local function attachClick(b)
@@ -5551,7 +5745,9 @@ local function InstallV5()
 		end
 
 		-- ===== 103/149: gửi chat (bản riêng của đợt D, vì SendChat của đợt B nằm trong block khác) =====
+		-- [8] gộp logic gửi chat + emote vào 1 chỗ; ưu tiên Humanoid:PlayEmote trước khi gửi /e qua chat
 		local function SendChatD(text)
+			if not States.ChatQuick then return "Bật Quick Chat trước" end
 			if type(text) ~= "string" or text == "" then return "Enter text" end
 			local ok, err = pcall(function()
 				if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then error("legacy chat") end
@@ -5564,7 +5760,21 @@ local function InstallV5()
 			return ok and "Sent!" or "Không hỗ trợ"
 		end
 
-		-- ===== 150: easter egg Konami (bàn phím + ô nhập cho mobile) =====
+		-- [8] PlayEmote: ưu tiên Humanoid:PlayEmote (chạy ngay, không cần chat); không được mới gửi /e qua chat
+		PlayEmote = function(name)
+			local char = Player.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				local ok, res = pcall(function() return hum:PlayEmote(name) end)
+				if ok and res ~= false then return "Sent!" end
+			end
+			-- PlayEmote không chạy (R6 / game không bật emote): fallback qua chat
+			local msg = SendChatD("/e " .. tostring(name))
+			if msg ~= "Sent!" then Log("emote: khong chay duoc '" .. tostring(name) .. "'") end
+			return msg
+		end
+
+		-- ===== 150: easter egg (bàn phím + ô nhập cho mobile); [10] mã chữ đổi thành mã bí mật mới =====
 		local KonamiSeq = {
 			Enum.KeyCode.Up, Enum.KeyCode.Up, Enum.KeyCode.Down, Enum.KeyCode.Down,
 			Enum.KeyCode.Left, Enum.KeyCode.Right, Enum.KeyCode.Left, Enum.KeyCode.Right,
@@ -5572,7 +5782,7 @@ local function InstallV5()
 		}
 		local konamiPos = 0
 		local function konamiFire()
-			Notify("KONAMI!!! Rainbow + Trail trong 30 giây", Theme.Accent)
+			Notify("Đã kích hoạt! Rainbow + Trail trong 30 giây", Theme.Accent) -- [10] không tiết lộ mã
 			if clickSound then pcall(function() clickSound:Stop(); clickSound:Play() end) end
 			local prevRainbow, prevTrail = States.RainbowUI, States.CharTrail
 			States.RainbowUI, States.CharTrail = true, true
@@ -5596,29 +5806,31 @@ local function InstallV5()
 				konamiPos = (code == KonamiSeq[1]) and 1 or 0
 			end
 		end
+		-- [10] chỉ còn 1 mã chữ bí mật (không phân biệt hoa thường, bỏ khoảng trắng 2 đầu); mã cũ đã bỏ
 		local function konamiText(txt)
-			local s = tostring(txt):upper():gsub("%s+", "")
-			if s == "KONAMI" or s == "UUDDLRLRBA" then
+			local s = tostring(txt):upper():gsub("^%s+", ""):gsub("%s+$", "")
+			if s == "THOLOGAY" then
 				konamiFire()
 				return true
 			end
 			return false
 		end
 
-		-- phím tắt đợt D: emote wheel / dance / wave + dãy Konami
+		-- phím tắt đợt D: emote wheel / dance / wave + dãy Konami (dãy Konami KHÔNG phụ thuộc Extra Hotkeys)
 		UIS.InputBegan:Connect(function(input, processed)
 			if RebindActive then return end
 			if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 			if not processed then konamiKey(input.KeyCode) end
-			if processed or not States.Hotkeys then return end
+			-- [1] phím emote yêu cầu Hotkeys + ExtraHotkeys như các phím khác
+			if processed or not States.Hotkeys or not States.ExtraHotkeys then return end
 			local code = input.KeyCode
 			if code == KeyBinds.EmoteWheel then
 				States.EmoteWheel = not States.EmoteWheel
 				if ToggleRefreshers.EmoteWheel then ToggleRefreshers.EmoteWheel() end
 			elseif code == KeyBinds.EmoteDance then
-				Notify(SendChatD("/e dance"), Theme.On)
+				Notify(PlayEmote("dance"), Theme.On)
 			elseif code == KeyBinds.EmoteWave then
-				Notify(SendChatD("/e wave"), Theme.On)
+				Notify(PlayEmote("wave"), Theme.On)
 			end
 		end)
 
@@ -5628,13 +5840,13 @@ local function InstallV5()
 		SliderRow(FN, "Master Volume %", "MasterPct", 0, 100, 31)
 		ToggleBtn(FN, "Mute Game Music", "MuteMusic", 32)
 		ToggleBtn(FN, "UI Click Sound", "ClickSound", 33)
-		Info5(FN, 34, "Phím: T = emote wheel, Y = dance, U = wave (đổi ở tab Set). Easter egg: ^ ^ v v < > < > B A hoặc gõ KONAMI / UUDDLRLRBA bên dưới.", 46)
+		Info5(FN, 34, "Phím: T = emote wheel, Y = dance, U = wave (đổi ở tab Set, cần bật Extra Hotkeys). Easter egg: dãy phím ^ ^ v v < > < > B A hoặc nhập mã bí mật bên dưới.", 46)
 		do
-			local eggBox = Row5(FN, 35, "Nhập mã bí mật (vd: UUDDLRLRBA)...", 36, false, nil)
+			local eggBox = Row5(FN, 35, "Nhập mã bí mật...", 36, false, nil) -- [10] không gợi ý mã
 			ActionBtn(FN, "Submit Code", 36, function()
 				if konamiText(eggBox.Text) then
 					eggBox.Text = ""
-					return "KONAMI!"
+					return "Đã kích hoạt!"
 				end
 				return "Mã không đúng..."
 			end)
@@ -5643,7 +5855,7 @@ local function InstallV5()
 		Tips["master volume"] = "Âm lượng tổng: nhân toàn bộ Sound/AudioEmitter với % bạn chọn. Cần bật toggle trước; tắt sẽ trả lại đúng âm lượng gốc."
 		Tips["mute game music"] = "Tắt nhạc nền của game: đoán theo tên Sound/SoundGroup chứa music, bgm, theme, soundtrack, background."
 		Tips["ui click sound"] = "Phát âm khi bấm nút của Jump Hub. Nếu executor/game không nạp được file âm thanh sẽ báo Không hỗ trợ."
-		Tips["submit code"] = "Nhập mã cho mobile (bàn phím gõ được KONAMI hoặc UUDDLRLRBA)."
+		Tips["submit code"] = "Nhập mã bí mật rồi bấm Submit để kích hoạt hiệu ứng (dành cho mobile không gõ được dãy phím)."
 
 		-- ===== driver đợt D =====
 		local function DDriver(dt, c)

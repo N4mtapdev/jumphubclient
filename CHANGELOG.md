@@ -1,98 +1,88 @@
-# Jump Hub v4.1 - Changelog
+# Jump Hub v4.2 - Changelog
 
-File: `JumpHubClient.lua` (v4.0 -> v4.1, ~5870 dòng, vẫn là MỘT file). Backup bản cũ: `JumpHubClient.backup.lua`.
+File: `JumpHubClient.lua` (v4.1 -> v4.2, ~6080 dòng, vẫn là MỘT file). Backup bản cũ: `JumpHubClient.v4.1.backup.lua` (và `JumpHubClient.backup.lua` là v4.0 cũ hơn).
 
-## Cách hoạt động
-- Toàn bộ 50 tính năng mới nằm trong hàm `InstallV5()` (cùng kiểu `InstallV4`, gọi bằng pcall ngay sau `pcall(InstallV4)`). Nếu phần mới lỗi, script v4.0 vẫn chạy và in `[JumpHub] v4.1 extension failed to load: ...` trong console.
-- Driver v4.1 được nối Heartbeat **giữa** driver v4.0 và vòng lặp chính: v4.0 đặt `SpeedBonus` (Sprint) trước, v4.1 cộng thêm (Crouch/Swim/Climb/Slide...), vòng lặp chính mới ghi `hum.WalkSpeed`. Không có chỗ nào ghi đè `hum.WalkSpeed` ngoài vòng lặp cũ. Có cơ chế tự chống cộng dồn nếu driver v4.0 chết.
-- Camera v4.1 chạy `BindToRenderStep` priority `Camera.Value + 2` (sau camera v4.0 +1).
-- Thêm 1 tab mới: **Set** (Settings). Các tính năng còn lại xếp vào tab cũ (Move/Cam/HUD/Light/FPS/Util/Fun/Misc).
-- Sửa 6 chỗ nhỏ trong code cũ, đều **giữ nguyên hành vi mặc định**:
-  1. Dòng tiêu đề phiên bản (v4.0 -> v4.1) + text Info tab UI + Copy Debug Info.
-  2. Handler hotkey cũ: `HotkeyMap[code]` -> `ResolveKeybind(code)` (mặc định vẫn F/H/N như cũ; cho phép đổi phím).
-  3. Phím Dash `Q` -> `KeyBinds.Dash` (mặc định vẫn Q).
-  4. Phím Sprint `LeftShift` -> `KeyBinds.Sprint` (mặc định vẫn LeftShift).
-  5. Phím ẩn/hiện menu `RightShift` -> `KeyBinds.Menu` (mặc định vẫn RightShift).
-  6. Spin trong vòng lặp chính: `0.1` rad/frame -> `(Sliders.SpinRate or 10)/100` (mặc định vẫn 0.1).
+Credit: **N4mtapdev** — credit nằm ở hằng số `CREDIT` gần đầu file, in khi khởi động (`[JumpHub] v4.2 | by N4mtapdev`), ở InfoLabel tab UI và Info5 đầu tab Set.
 
-## Kết quả theo 50 mục còn thiếu
+## Tổng quan
 
-### Đợt A - Movement + Camera (15/15 xong)
-- **4 Hover đi ngang**: toggle "Hover Moves Sideways" — khi Hover đang bật, giữ hướng di chuyển để bay ngang theo WalkSpeed; tắt trả về đứng yên đúng như cũ.
-- **9 Air Control**: slider 0-100% — trên không, vận tốc ngang được lerp về hướng di chuyển.
-- **14 Air Dash**: toggle + slider lực + phím E + nút AIR DASH trên mobile; chỉ trên không, cooldown 1.2s, tốn stamina.
-- **15 Slide**: toggle + slider tốc độ/thời gian + phím V + nút SLIDE; chỉ trên mặt đất, đang di chuyển; hạ camera lúc trượt; nhảy lên là hết.
-- **17 Thanh Stamina**: toggle bật thanh dưới màn hình; sprint liên tục -16/s, Air Dash -25, Slide -15; hết thì chặn sprint/dash/slide đến khi hồi >= 25 (cản trở sprint v4.0 bằng cách về 0 trong SpeedBonus).
-- **18 Crouch**: toggle + giữ C (hoặc giữ nút CROUCH trên mobile) -> đi chậm theo slider % + hạ camera.
-- **19 Tốc độ leo**: toggle + slider — chỉ áp dụng khi Humanoid đang ở trạng thái Climbing (thang/dây).
-- **26 Giới hạn tốc độ rơi**: toggle + slider MaxFall (mặc định 70).
-- **27 Tốc độ bơi**: toggle + slider — chỉ áp dụng khi trạng thái Swimming.
-- **29 Spin speed**: slider 0-60 (10 = 0.1 rad/frame như bản cũ) — chỉnh spin của tab Misc.
-- **34 Free Cam**: toggle + slider tốc độ + phím P. WASD di chuyển, Space lên, Ctrl xuống; nhìn bằng giữ chuột phải (PC) hoặc kéo màn hình (mobile, có 6 nút ảo); nhân vật đứng yên trong lúc bật; tắt trả camera về Custom.
-- **36 Shift Lock**: bản mô phỏng client (Roblox không có API bật Shift Lock từ script): tắt AutoRotate, xoay nhân vật theo camera khi di chuyển; tắt khôi phục AutoRotate.
-- **37 Camera mượt**: toggle + slider; low-pass góc nhìn, tự snap khi quay quá 50°/frame.
-- **38 Tắt rung màn hình**: **KHÔNG KHA THI 100%** — Roblox không có API tắt camera shake, game tự tạo rung bằng cách ghi Camera.CFrame. Đã làm phiên bản "giảm rung": toggle lọc dao động tần suất cao (di chuyển lớn/vượt 45° hoặc 25 studs thì snap ngay để không trễ thao tác thật). Không tắt được 100%.
-- **41 Camera offset**: toggle + 2 slider lên/ngang (dùng `Humanoid.CameraOffset`, lưu giá trị gốc và trả lại khi tắt).
+Toàn bộ sửa lỗi vẫn nằm trong `InstallV5()` (trừ `ExpandedSize`, `SliderRefreshers`, `JHFlags`, `CREDIT` ở cấp file — cần thiết để handler menu đầu file dùng chung được). Mọi tính năng v4.0/v4.1 giữ nguyên hành vi.
 
-### Đợt B - HUD + Perf + Light + Util (15/15 xong)
-- **88 Biểu đồ Ping**: 40 mẫu, cập nhật 4 lần/giây, góc trên trái.
-- **90 Minimap**: 140px, chấm người chơi xoay theo camera, slider bán kính (30-500 studs).
-- **92 Keystrokes**: W/A/S/D + Space sáng khi nhấn (cập nhật mỗi frame).
-- **93 CPS**: đếm chuột trái/chạm trong 1 giây.
-- **95 Biểu đồ FPS**: 40 mẫu, tự vẽ 4 lần/giây.
-- **56 Giảm chi tiết mesh**: MeshPart.RenderFidelity = Performance (lưu giá trị gốc vào attribute, tắt khôi phục đúng; cả part stream vào sau).
-- **63 Giảm animation NPC ở xa**: chỉ NPC (không phải người chơi); xa hơn slider thì `AdjustSpeed(0)`, lại gần thì `AdjustSpeed(1)`; tắt khôi phục toàn bộ.
-- **65 Ẩn GUI game theo tên**: toggle + ô nhập tên (phân cách bằng dấu phẩy, mặc định "leaderboard, stats, shop"); GUI của hub luôn loại trừ; tắt bật lại đúng GUI đã ẩn.
-- **72 Sky preset**: 5 preset (Clear Blue dùng skybox rbxasset mặc định của Roblox, Sunset, Night, Foggy, Dark Red) + nút Reset Sky lưu/khôi phục toàn bộ.
-- **77 Sun Rays**: toggle + cường độ (SunRaysEffect tên JH_SunRays, tắt là Destroy).
-- **80 Lưu/tải preset ánh sáng**: file `JumpHub_LightPreset.json` (cần writefile/readfile, không có thì báo Không hỗ trợ).
-- **102 Lịch sử clipboard**: mọi copy từ tính năng v4.1 (vị trí, JobId, export...) ghi vào danh sách; bấm 1 mục để copy lại; có nút Copy Whole History + Clear. Lưu ý: các nút copy của v4.0 (Copy My Position...) nằm trong code cũ nên chưa ghi vào lịch sử.
-- **103 Chat nhanh**: gửi qua `TextChatService.TextChannels.RBXGeneral:SendAsync` (API chính thức, KHÔNG dùng RemoteEvent); game dùng chat legacy sẽ báo Không hỗ trợ.
-- **104 Emote wheel**: bánh xe 6 nút (Wave/Point/Cheer/Laugh/Dance/Dance2) giữa màn hình, gửi lệnh `/e` qua chat; phím T; nút X để đóng.
+## Kết quả theo 9 mục
 
-### Đợt C - UI + Settings (8 xong + 1 không khả thi)
-- **112 Đổi kích thước cửa sổ**: **KHÔNG KHẢ THI** — Roblox không cung cấp API nào cho script đổi kích thước cửa sổ/viewport client (đã ghi rõ trong tab Set). Thay thế hợp lệ: "Menu Size %" cũ + nút "Fit Menu to Screen".
-- **118 Theme Sáng**: toggle đổi Background/Panel/Text/SubText/Off trên MỌI GUI của hub (đổi cả màu chữ, placeholder); accent giữ nguyên; tắt trả về đúng palette tối cũ.
-- **122 Icon tab**: toggle thêm ký hiệu hình học (▶ ● ◆ ▲ ○ ◎ ▤ ◐ ▩ ★ ■ ▦) vào từng tab; tắt trả về tên gốc. Nếu một vài font mobile hiện ô trống thì chỉ cần tắt toggle.
-- **125 Yêu thích**: mỗi hàng có nút sao (36px) bên trái để ghim/bỏ ghim; danh sách ghim ở tab Set, bấm tên để nhảy tới đúng trang + cuộn tới hàng + nhấp nháy viền. Lưu vào `JumpHub_V5.json`.
-- **126 Tooltip**: hover chuột (PC) hoặc giữ 0.45s (mobile) hiện giải thích cho ~120 tính năng; toggle bật/tắt.
-- **129 Ripple**: hiệu ứng gợn sóng khi bấm mọi nút của hub (kể cả nút tạo sau); tắt là ngắt hết connection + hủy ripple đang chạy.
-- **130 Responsive**: tự chạy 4 lần/giây: tab cao 42px (nút >= 36px) trên mobile, dịch trang xuống cho khớp, thu nhỏ menu vừa màn hình nhỏ; nút "Fit Menu to Screen" áp dụng ngay.
-- **132 Tự tải cấu hình**: mỗi đợt key mới đều đọc lại `JumpHub_Settings.json` khi khởi động (key di chuyển/camera vẫn bị loại theo SaveExclude đúng quy tắc).
-- **133 Nhiều profile**: file `JumpHub_Profiles.json`, Save/Load/Delete theo tên.
-- **134 Xuất/nhập**: Export copy chuỗi JSON ra clipboard; Import dán chuỗi -> áp dụng + làm mới UI.
-- **135 Reset ALL**: về mặc định toàn bộ States/Sliders/Theme/Keybinds/Yêu thích/Auto-Start, xóa cả file cài đặt.
-- **136 Keybind editor**: 14 action (Fly/Hover/NoClip/Dash/Sprint/Menu/Crouch/Slide/AirDash/FreeCam/ShiftLock/EmoteWheel/Dance/Wave); bấm dòng -> gõ phím mới (Esc hủy; tạm khóa hotkeys trong lúc chờ); lưu `JumpHub_V5.json`; có nút Reset Keybinds.
-- **137 Ngôn ngữ Việt/Anh**: nút Language ở tab Set; ~150 label được dịch; label tạm bị code cũ trả về tiếng Anh sẽ tự sửa lại trong 1 giây; lưu vào file.
-- **138 Auto-start**: "Save ON Features as Auto-Start" ghi danh sách tính năng đang bật; lần vào game sau tự bật lại (kể cả key thuộc SaveExclude vì đây là lựa chọn chủ động của người dùng); có Clear.
-- **139 Version + changelog**: bảng trong tab Set liệt kê v4.1 + mục không khả thi.
-- **140 Log nội bộ**: mọi lỗi bị pcall bắt trong v4.1 ghi vào tab Set (giới hạn 120 dòng, chống spam trùng), kèm Refresh/Clear.
+### [1] Extra Hotkeys (phím tắt v4.1 mặc định TẮT) — XONG
+- State mới `ExtraHotkeys` (mặc định `false`, được lưu vào file cài đặt vì không nằm trong SaveExclude).
+- Toggle mới "Extra Hotkeys (E/V/P/Z/T/Y/U)" trong tab Set (order 9).
+- Handler phím đợt A (AirDash E, Slide V, FreeCam P, ShiftLock Z) và đợt D (EmoteWheel T, EmoteDance Y, EmoteWave U) chỉ chạy khi `States.Hotkeys` **và** `States.ExtraHotkeys` đều bật.
+- Riêng AirDash/Slide: nếu tính năng tương ứng đang tắt thì **im lặng**, không hiện toast "Air Dash is off".
+- Dãy Konami giữ nguyên, không phụ thuộc Extra Hotkeys.
+- Info5 tab Move và tab Fun đã nhắc cần bật Extra Hotkeys.
 
-### Đợt D - Audio + Fun (5/5 xong)
-- **141 Âm lượng tổng**: toggle + slider 0-100%. Roblox không có thuộc tính master volume, nên làm bằng cách nhân Volume của mọi Sound/AudioEmitter trong Workspace + SoundService (lưu gốc, tắt trả đúng như cũ; sound mới cũng được áp). Một số âm phát bằng API Audio mới hoặc từ nơi script không thấy được có thể không nằm trong phạm vi.
-- **142 Tắt nhạc nền**: đoán nhạc theo tên Sound/SoundGroup chứa "music/bgm/theme/soundtrack/background"; tắt trả đúng âm lượng gốc.
-- **144 Âm click UI**: thử lần lượt 3 ID (electronicpingshort.wav, button.wav, uuhhh.mp3), không nạp được thì tự tắt + báo "Không hỗ trợ".
-- **149 Phím tắt emote**: Y = dance, U = wave, T = wheel (đổi được trong Keybind editor); mobile có nút trên tab Fun + bánh xe.
-- **150 Easter egg Konami**: ↑↑↓↓←→←→BA trên bàn phím, hoặc gõ `KONAMI`/`UUDDLRLRBA` vào ô trên tab Fun (cho mobile); hiệu ứng Rainbow + Trail 30 giây rồi trả lại trạng thái cũ.
+### [2] FPS Graph hiện sai — XONG
+- `frames += 1` chuyển từ BSlow (4 lần/giây) sang BDriver (mỗi frame); BSlow chỉ tính `fps = frames / elapsed` rồi reset.
+- `lastFpsT` khởi tạo = `tick()` (không còn lệch mẫu đầu).
+- Tắt rồi bật FPS Graph sẽ `table.clear(fpsVals)` để biểu đồ bắt đầu mới.
+
+### [3] Master Volume gọi .Volume trên AudioEmitter — XONG
+- `masterTouch`, `applyMaster`, `onSoundAdded` giờ **chỉ** xử lý `v:IsA("Sound")`; bỏ AudioEmitter hoàn toàn (bỏ qua hệ audio mới, không lỗi).
+- Mọi truy cập property (đọc/ghi Volume, khôi phục giá trị gốc) đều bọc pcall.
+
+### [4] Slider không cập nhật hình sau reset/load/import — XONG
+- `SliderRefreshers[sliderKey]` định nghĩa **trước** SliderRow (ngay cạnh ToggleRefreshers, cấp file).
+- Trong SliderRow đăng ký hàm làm mới fill/knob/valueLbl theo `Sliders[sliderKey]` hiện tại (min/max lấy từ closure); không đổi chữ ký hàm.
+- `RefreshAllSliders()` được gọi sau: `resetAll`, `applyBundle` (Load Profile / Import), Load Light Preset, Apply Custom Accent, Fit Menu to Screen và khi `LoadKeys` chạy xong.
+
+### [5] Mục 112 = RESIZE CỬA SỔ MENU — XONG
+- Tay nắm kéo 24x24 ở góc dưới phải Main (hỗ trợ chuột + touch); kéo đổi `Main.Size` trong khoảng **280x300 → 560x720**, giới hạn không vượt viewport.
+- Kích thước lưu trong `ExpandedSize`; handler MinBtn mở lại đúng `ExpandedSize` thay vì cứng 320x380.
+- Lưu/nạp vào `JumpHub_V5.json` (khóa `MenuSize`, có pcall); nút **Reset Menu Size** trong tab Set trả về 320x380 và xóa khóa.
+- `ApplyResponsive` sửa lại: scale chỉ thu khi menu vượt viewport theo kích thước người dùng đã kéo (không còn cứng 384/340).
+- Đã xóa/cải 2 đoạn "KHÔNG KHẢ THI" ở danh sách ver tab Set và Info5 cuối trang Set; thay bằng mô tả đúng. Riêng mục 38 (tắt rung màn hình) vẫn giữ ghi chú "chưa 100%".
+
+### [6] Quick Chat toggle không làm gì — XONG (chọn phương án b)
+- Khi `States.ChatQuick` **tắt**: nút "Send to Chat", các nút Emote và phím Y/U/emote wheel đều báo **"Bật Quick Chat trước"** (cả SendChat của đợt B và SendChatD của đợt D đều gate).
+- Ghi chú rõ trong Tips["quick chat (textchatservice)"].
+
+### [7] Keybind editor — XONG
+- Cờ `JHFlags = {Rebind = false}` khai báo ở cấp file TRƯỚC handler Menu; handler Menu return ngay khi `JHFlags.Rebind = true` → bấm phím Menu cũ trong lúc rebind không còn ẩn menu. `RebindActive` trong InstallV5 set cùng cờ.
+- Chặn phím hệ thống: không gán được Tab, Backquote, Return (Escape chỉ dùng để hủy).
+- Chống trùng phím: gán phím đã dùng cho action khác sẽ **tự hoán đổi** hai action + Notify thông báo, không còn hai action chung một phím.
+
+### [8] Emote qua /e có thể không chạy — XONG
+- Hàm `PlayEmote(name)` (đợt D, khai báo trước để đợt B dùng chung): ưu tiên `Humanoid:PlayEmote(name)` bọc pcall, kiểm tra kết quả trả về; không chạy được thì fallback `SendAsync("/e name")` qua `SendChatD` (đã gộp logic, không còn lặp code); cả hai thất bại thì trả "Không hỗ trợ" và ghi Log.
+- Cập nhật: Emote Wheel (6 nút), nút Emote: Wave/Dance, phím Y/U.
+- Cả đường emote đều qua gate Quick Chat của mục [6].
+
+### [9] Giao diện chồng lấn mobile + Auto-Start — XONG
+- **WidgetStack**: Frame mới `JH_WidgetStack` với UIListLayout dọc, đặt dưới nút JH/DASH (y = 0.35 scale + 120px). Ping Graph, FPS Graph, Minimap, CPS vào stack thay vì Position cứng → không còn chồng nhau và không đè FloatBtn/DashFloat. Mỗi widget **kéo được** (chuột + touch) và nhớ vị trí trong phiên (`stackPosMemo`); kéo ra thì thoát khỏi stack.
+- **Keystrokes** tự tắt trên thiết bị touch không có bàn phím.
+- **Stamina bar** đặt cao hơn 90px so với đáy (y = 1,-124) khi `UIS.TouchEnabled` để tránh thanh jump/nút ảo của game.
+- **MovePad/FreePad** dịch trái (1,-88) khi FlyPad đang hiện (FlyPad ở 1,-16 / 0.55); vị trí cập nhật mỗi frame trong MoveDriver theo `States.Fly`.
+- **Auto-Start (138)**: chuyển áp dụng `AutoOn` vào **LateInit** (sau khi mọi State của cả 4 đợt đã được tạo) rồi gọi `ToggleRefreshers` cho từng key → key đợt D (MasterVol, MuteMusic, ClickSound...) giờ tự bật đúng.
+
+### [10] Easter egg — XONG
+- Mã chữ cũ đã bỏ; chỉ còn **một mã bí mật mới** (không phân biệt hoa thường, bỏ khoảng trắng 2 đầu). Dãy phím ↑↑↓↓←→←→BA giữ nguyên.
+- Mã không được xuất hiện ở bất kỳ UI/tooltip/log nào: placeholder đổi thành "Nhập mã bí mật...", Info5 và Tips chỉ nói "mã bí mật", toast khi kích hoạt không nêu mã. *(Trong file vẫn phải có chuỗi so sánh để mã hoạt động — đây là bắt buộc kỹ thuật.)*
+
+### [11] Credit — XONG
+- `CREDIT = "N4mtapdev"` một chỗ duy nhất gần đầu file; dùng ở comment đầu file, print khởi động, InfoLabel tab UI, Info5 đầu tab Set. Không thêm nút/liên kết, không HttpGet.
 
 ## Chưa được test trong game (nói thật)
-Môi trường không có Roblox/executor, nên **chưa chạy thử trong game**. Đã kiểm tra bằng công cụ chính thức của Luau:
-- `luau-compile` (Luau 0.6xx bản chính thức): **SYNTAX OK** toàn file sau mỗi đợt.
-- `luau-analyze`: không còn "Unknown global" mới so với bản gốc (tức không gọi nhầm biến/toàn cục), các cảnh báo còn lại chỉ là lint cũ (biến không dùng, shadow) có sẵn từ v4.0.
-- Kiểm đếm local chunk chính: 172/200 (còn dư, nhờ toàn bộ code mới nằm trong InstallV5).
+Môi trường không có Roblox/executor, **chưa chạy thử runtime**. Đã kiểm tra bằng công cụ chính thức của Luau:
+- `luau-compile` (bản chính thức): **SYNTAX OK** exit 0 toàn file.
+- `luau-analyze`: không có "Unknown global" mới so với baseline (toàn bộ cảnh báo còn lại là global Roblox/executor hợp lệ đã có từ v4.0: Enum, Color3, writefile...).
+- Local cấp file: 160/200 (thêm 4: CREDIT, ExpandedSize, SliderRefreshers + RefreshAllSliders, JHFlags — đều là yêu cầu bắt buộc của đề để dùng chung giữa các scope).
+- Runtime trong game (PlayEmote trên từng loại rig, drag widget trên touch thật, ChatVersion từng game, keybind hoán đổi giữa 14 action) **chưa kiểm chứng được** — cần test theo checklist dưới.
 
-Chưa kiểm chứng được: hành vi runtime thật (Roblox API từng property/event), executor có/không có writefile-setclipboard, hành vi TextChatService của từng game, việc nạp rbxasset sound, hiệu năng của minimap/graph trong map lớn, va chạm giữa các tính năng của từng game (vd Shift Lock + game tự xoay nhân vật).
-
-## Checklist test nhanh (10-15 phút)
-1. Chạy script: console có `v4 extension installed` + `v4.1 extension installed`; thanh tab có 12 tab gồm "Set"; mọi tính năng cũ (Bunny Hop, Fly, Sprint, FPS counter...) vẫn hoạt động như v4.0.
-2. Move: bật Hover + "Hover Moves Sideways" rồi tắt (phải đứng yên lại); Air Control; Air Dash phím E; Slide phím V; bật Stamina Bar rồi giữ Shift chạy đến cạn.
-3. Crouch giữ C; Climb Speed trên thang; Limit Fall Speed (nhảy từ cao); Swim Speed dưới nước; kéo Spin Speed về 0 rồi về 10 (phải quay đúng như cũ).
-4. Cam: Free Cam phím P (nhân vật đứng yên, WASD+Space/Ctrl, chuột phải để nhìn, tắt về camera thường); Shift Lock Z; Camera Smoothing (kéo về 5 để thấy rõ); Reduce Shake; Camera Offset.
-5. HUD: Ping Graph, FPS Graph, Minimap, Keystrokes, CPS; tắt từng cái là widget biến mất hết vẽ (không sót frame).
-6. Light: Sky Preset vòng 5 preset rồi Reset Sky (phải về như cũ); Sun Rays; Save/Load Light Preset.
-7. FPS tab: Reduce Mesh Detail bật/tắt (mesh mờ đi rồi về như cũ); Freeze Far NPC Animations.
-8. Util: Clipboard History (copy vị trí rồi xem lịch sử); Quick Chat (game TextChatService mới gửi được); Emote Wheel phím T.
-9. Set: Light Theme bật/tắt; Tab Icons; bật 1 vài star rồi mở Favorites bấm để nhảy tới; Save Profile/Load; Export -> Copy -> dán vào Import; Reset ALL; Keybind editor (đổi Fly sang J, bấm J phải bật Fly, bấm F phải không còn tác dụng); Language đổi Việt/Anh; xem Log.
-10. Fun: Master Volume kéo 0 (tắt hết tiếng) rồi tắt toggle (tiếng về đúng cũ); Mute Game Music; UI Click Sound; Konami bằng bàn phím và bằng ô nhập.
-11. Respawn khi đang bật: Trail/Aura (v4), Stamina, Camera Offset, Slide — không được lỗi, không còn dư CameraOffset cũ.
-12. Mobile: nút ảo CROUCH/SLIDE/AIR DASH (>=36px), pad Free Cam 6 nút, kéo màn hình để nhìn khi Free Cam; giữ 0.45s vào 1 hàng để hiện tooltip.
+## Checklist test (10-15 phút)
+1. **Extra Hotkeys**: bấm E/V/P/Z/T/Y/U khi toggle tắt → không có gì xảy ra (kể cả không toast khi bấm E/V); bật toggle trong tab Set → phím hoạt động; khởi động lại game toggle giữ nguyên trạng thái đã lưu.
+2. **FPS Graph**: bật ở tab HUD, số FPS phải khớp thanh tiêu đề (trước luôn ~4); tắt/bật lại biểu đồ vẽ lại từ đầu.
+3. **Master Volume**: bật trong game nhiều âm thanh (kể cả game dùng Audio API mới) → Log tab Set không có lỗi; tắt toggle tiếng về đúng cũ.
+4. **Slider refresh**: Reset ALL / Load Profile / Import → mọi thanh trượt nhảy đúng giá trị mới; Load Light Preset cũng vậy.
+5. **Resize menu**: kéo góc dưới phải (280x300..560x720, không vượt màn hình); thu nhỏ "-" rồi mở lại → giữ kích thước đã kéo; Reset Menu Size → về 320x380; vào lại game kích thước vẫn giữ.
+6. **Keybind**: bấm dòng Menu, gõ phím mới; trong lúc chờ gõ phím Menu cũ → menu KHÔNG ẩn; gán phím trùng → hai action tự hoán đổi; thử gán Tab/Backquote/Return → bị chặn.
+7. **Emote**: Emote Wheel + nút Wave/Dance + phím Y/U trên nhân vật R15 → emote chạy ngay không cần gửi chat; game R6 → fallback /e; Quick Chat tắt → báo "Bật Quick Chat trước".
+8. **Mobile**: Ping/FPS/Minimap/CPS xếp dọc dưới nút JH/DASH, kéo được từng widget; Keystrokes tự ẩn trên touch; stamina bar cao hơn nút jump; bật Fly → MovePad/FreePad dịch trái không đè FlyPad.
+9. **Auto-Start**: bật MasterVol (+ key đợt D khác), Save ON Features as Auto-Start, vào lại game → tự bật + nút UI hiển thị đúng trạng thái ON.
+10. **Easter egg**: dãy phím ↑↑↓↓←→←→BA vẫn kích hoạt; ô nhập mã chấp nhận mã mới (hoa/thường/khoảng trắng đều được), mã cũ không còn tác dụng.
+11. Regressions cũ nên chạy lại nhanh: Fly/Hover/NoClip, hotkey F/H/N (chỉ phụ thuộc Hotkeys như cũ), Save/Load Settings, tab Set Language Việt/Anh.
