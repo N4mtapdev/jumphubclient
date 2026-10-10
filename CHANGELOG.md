@@ -76,6 +76,19 @@ Toàn bộ sửa lỗi vẫn nằm trong `InstallV5()` (trừ `ExpandedSize`, `S
 ### [11] Credit — XONG
 - `CREDIT = "N4mtapdev"` một chỗ duy nhất gần đầu file; dùng ở comment đầu file, print khởi động, InfoLabel tab UI, Info5 đầu tab Set. Không thêm nút/liên kết, không HttpGet.
 
+### [12] Luau / obfuscator prep — XONG (10/10/2026)
+- Toolchain Luau chính thức: `luau-compile`, `luau-analyze`, `luau` — tải từ https://github.com/luau-lang/luau/releases, đặt **ngoài repo và không dùng /tmp** (ví dụ `~/.cache/jumphub-build/luau/`). Gate chính thức: `luau-compile --binary` **exit 0** cho toàn file và cho mọi output đã obfuscate (chưa kiểm chứng runtime executor Roblox — môi trường không có Roblox/executor).
+- Obfuscator chọn: **`prometheus-lua/Prometheus`** v0.2.11.1 — rebuild bằng đúng một lệnh **`sh tools/build.sh`**: script tự tải Prometheus version pinned vào `~/.cache/jumphub-build`, copy generator `tools/chemical.lua` vào `src/prometheus/namegenerators/chemical.lua` (đúng đường dẫn Prometheus `require`) + đăng ký `Chemical`, rồi chạy `--LuaU --config prometheus.config.lua` → `main.lua`. **Không phụ thuộc /tmp.** (presets có thật: `Weak`, `Strong`, `Vmify`, `Minify`, `Medium` — **không có preset `Light`**). Preset `Medium` bao gồm Encrypt Strings + Anti Tamper + Vmify + Constant Array + Numbers-To-Expressions (output ~14.000% source với file test nhỏ). Phương án thay thế: `hercules-obfuscator` với `--target luau` (12/14 module hỗ trợ Luau, tự tắt VM/bytecode).
+- Lưu ý: parser của Prometheus **không nhận type annotation** (`local function greet(name: string)` lỗi parse) → input obfuscate phải là code không có annotation. `JumpHubClient.lua` không dùng annotation nên ổn. Luau support của Prometheus theo README là "basic/unfinished" → luôn validate output lại bằng `luau-compile --binary`.
+- Revert: dùng `JumpHubClient.v4.2.backup.lua` để khôi phục source gốc v4.2 nếu cần.
+
+### [13] Build / publish prep — XONG
+- Single-file LocalScript source: `JumpHubClient.lua` (dùng cho mọi mục đích), khớp checksum `3344350e31d4b434df98fea978808379203b7d27`.
+- Backup: `JumpHubClient.v4.2.backup.lua` khớp checksum `3c3d2be937065f95b734be74ece86ba7a20a64b0`.
+- Bản obfuscate: `main.lua` (preset Minify, tên biến theo công thức hóa học Chemical), tái tạo bằng `sh tools/build.sh`, sha1 `9fc602037278cb8ffb447de44b1ff36c2fa21cd5`.
+- Tooling nằm trong repo: `tools/build.sh`, `tools/chemical.lua`, `prometheus.config.lua` — build tái tạo 100% từ repo.
+- `JumpHubClient.source.lua`, `JumpHubClient.preobf.lua`, `*.backup.lua`, `*.bak` nằm trong `.gitignore` → không đẩy lên repo công khai.
+
 ## Chưa được test trong game (nói thật)
 Môi trường không có Roblox/executor, **chưa chạy thử runtime**. Đã kiểm tra bằng công cụ chính thức của Luau:
 - `luau-compile` (bản chính thức): **SYNTAX OK** exit 0 toàn file.

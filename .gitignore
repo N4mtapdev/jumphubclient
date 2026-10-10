@@ -1,0 +1,9 @@
+# Không đẩy bản gốc dễ đọc lên repo công khai
+JumpHubClient.source.lua
+JumpHubClient.preobf.lua
+*.backup.lua
+*.bak
+
+# Không đẩy file mã rác của môi trường
+.DS_Store
+Thumbs.db
