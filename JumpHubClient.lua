@@ -1906,6 +1906,19 @@ ToggleBtn(Page2, "Click Teleport (tap / Ctrl+Click)", "ClickTP", 11)
 ToggleBtn(Page2, "Dash Button (on screen)", "DashButton", 12)
 SliderRow(Page2, "Dash Power", "DashPower", 50, 300, 13)
 ActionBtn(Page2, "Dash Forward (Q)", 14, function() DoDash() end)
+ActionBtn(Page2, "Quick Heal (full HP)", 15, function()
+	local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return "No character" end
+	if hum.Health <= 0 then return "Already down" end
+	local maxHP = hum.MaxHealth
+	local ok = pcall(function() hum.Health = maxHP end)
+	if not ok then return "Game blocks client heal" end
+	local now, max = math.floor(hum.Health), math.floor(maxHP)
+	if now >= max then
+		return ("Healed: %d/%d"):format(now, max)
+	end
+	return ("HP %d/%d - game kept the damage"):format(now, max)
+end)
 
 -- Misc page: warnings, look & feel, saving, players, servers
 ToggleBtn(Page3, "Lag Warning", "LagWarn", 7)
@@ -6104,10 +6117,9 @@ RunService.Heartbeat:Connect(function(dt)
 			UpdateSpeedClimb(char)
 		end
 
-		-- Auto Walk: keep moving forward relative to the camera
-		if States.AutoWalk then
-			hum:Move(Vector3.new(0, 0, -1), true)
-		end
+		-- Auto Walk now lives in its own PreSimulation connection below this loop
+		-- (see the comment there) - a Move() here, inside Heartbeat, was too late
+		-- to move the character.
 
 		-- Anti Fall Damage: cap the downward fall speed (skipped while Fly is on)
 		if States.AntiFall and not States.Fly then
@@ -6173,6 +6185,22 @@ RunService.Heartbeat:Connect(function(dt)
 		end
 		SubTitle.TextColor3 = fpsColor
 		SubTitle.Text = ("FPS: %d | %sms"):format(fpsAccum, pingOk and tostring(ping) or "--")
+	end
+end)
+
+-- Auto Walk: keep moving forward relative to the camera.
+-- It must be applied in PreSimulation (before the physics step), NOT Heartbeat:
+-- Roblox's own PlayerModule writes the humanoid's move direction from a
+-- RenderStepped callback (a zero vector whenever no movement key is held), and
+-- Heartbeat fires AFTER physics - so a Move() issued there never affected the
+-- current step and was overwritten by the next control-module update before the
+-- next one. That is why the toggle used to do nothing. PreSimulation fires after
+-- the control module and before physics, so our direction is the last one written.
+RunService.PreSimulation:Connect(function()
+	if not States.AutoWalk or States.FreeCam then return end
+	local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+	if hum and hum.Health > 0 then
+		hum:Move(Vector3.new(0, 0, -1), true)
 	end
 end)
 

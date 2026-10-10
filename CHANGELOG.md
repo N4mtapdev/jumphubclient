@@ -83,11 +83,16 @@ Toàn bộ sửa lỗi vẫn nằm trong `InstallV5()` (trừ `ExpandedSize`, `S
 - Revert: dùng `JumpHubClient.v4.2.backup.lua` để khôi phục source gốc v4.2 nếu cần.
 
 ### [13] Build / publish prep — XONG
-- Single-file LocalScript source: `JumpHubClient.lua` (dùng cho mọi mục đích), khớp checksum `3344350e31d4b434df98fea978808379203b7d27`.
+- Single-file LocalScript source: `JumpHubClient.lua` (dùng cho mọi mục đích), khớp checksum `bd8a17a696b6625809efe5f93c074e8e5d9dc046` (cập nhật sau [14]).
 - Backup: `JumpHubClient.v4.2.backup.lua` khớp checksum `3c3d2be937065f95b734be74ece86ba7a20a64b0`.
-- Bản obfuscate: `main.lua` (preset Minify, tên biến theo công thức hóa học Chemical), tái tạo bằng `sh tools/build.sh`, sha1 `9fc602037278cb8ffb447de44b1ff36c2fa21cd5`.
+- Bản obfuscate: `main.lua` (preset Minify, tên biến theo công thức hóa học Chemical), tái tạo bằng `sh tools/build.sh`, sha1 `70b50d7eff311dcc0930817116c443ab773d9533` (cập nhật sau [14]; bản trước [14] = `9fc602037278cb8ffb447de44b1ff36c2fa21cd5`).
 - Tooling nằm trong repo: `tools/build.sh`, `tools/chemical.lua`, `prometheus.config.lua` — build tái tạo 100% từ repo.
 - `JumpHubClient.source.lua`, `JumpHubClient.preobf.lua`, `*.backup.lua`, `*.bak` nằm trong `.gitignore` → không đẩy lên repo công khai.
+
+### [14] Quick Heal + fix Auto Walk không di chuyển — XONG (10/10/2026)
+- **Quick Heal (full HP)**: nút `ActionBtn` mới trong tab **Player**, order 15 (ngay sau "Dash Forward (Q)"). Bấm = `Humanoid.Health = MaxHealth` ngay lập tức (bọc pcall), nút tự hiện kết quả thật: `Healed: x/y` khi đầy, `HP x/y - game kept the damage` khi game ghi đè lại máu, `No character` / `Already down` tương ứng. Client-side: một số game bắt server giữ quyền ghi máu → lúc đó chỉ hiện báo, script không chết.
+- **Sửa Auto Walk không hoạt động (nguyên nhân gốc = timing)**: trước đây `hum:Move(Vector3.new(0,0,-1), true)` nằm trong driver `Heartbeat` = `PostSimulation`, chạy **sau** bước physics; còn PlayerModule của Roblox tự ghi `MoveDirection` từ callback `RenderStepped` (vector 0 khi không giữ phím di chuyển) → Move của script luôn bị ghi đè trước khi vật lý kịp đọc → toggle bật nhưng nhân vật không đi. Đã tách thành connection riêng `RunService.PreSimulation` (chạy sau control module, **trước** physics → hướng đi của ta là giá trị được ghi cuối cùng), kèm guard `not States.FreeCam` (Free Cam yêu cầu nhân vật đứng yên) và `hum.Health > 0`. Xóa block `hum:Move` cũ trong driver Heartbeat. (Nguồn: đọc source ControlScript của Roblox + tài liệu RunService — create.roblox.com/docs/reference/engine/classes/RunService.)
+- Gate lại: `luau-compile --binary JumpHubClient.lua` **exit 0**; `sh tools/build.sh` **exit 0** → `main.lua` **178.577 byte**; `luau-compile --binary main.lua` **exit 0**. `JumpHubComments.md` regenerate theo source mới.
 
 ## Chưa được test trong game (nói thật)
 Môi trường không có Roblox/executor, **chưa chạy thử runtime**. Đã kiểm tra bằng công cụ chính thức của Luau:

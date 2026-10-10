@@ -152,217 +152,227 @@ L1824		-- Auto Low-GFX: if FPS stays under the threshold for 3s, flip Low Graphi
 L1825		-- One-shot (turns itself off afterwards) so it never fights a manual toggle.
 L1840	-- ---------- v3.3 additions: UI rows (built last so every callback target exists) ----------
 L1876	-- Player page: teleport slots + movement extras
-L1910	-- Misc page: warnings, look & feel, saving, players, servers
-L1967	-- ================= v4.0 EXTENSION MODULE =================
-L1968	-- Everything new lives inside InstallV4() so it gets its own local-variable budget
-L1969	-- (the main chunk is already close to Luau's 200-locals limit).
-L1977		-- ---------- 1. new state / slider keys ----------
-L2007		-- movement / camera / fun toggles are never auto-restored on the next launch
-L2015		-- the save file was read before these keys existed, so read it again for them
-L2030		-- ---------- 2. small UI helpers ----------
-L2084		-- ---------- 3. scrolling tab bar + 6 new tabs ----------
-L2117		-- ---------- 4. extra overlay GUIs (HUD, bars, crosshair) ----------
-L2177		-- ---------- 5. UI ROWS ----------
-L2178		-- Move page (Page1) extras
-L2205		-- FPS page (Page4) extras
-L2235				-- leaving Ultra Low runs Battery Saver's restore pass first; wait for it to finish
-L2241		-- Cam page
-L2271		-- HUD page
-L2304		-- Light page
-L2352		-- Util page
-L2386		-- tiny safe calculator (no loadstring): + - * / ^ and parentheses
-L2463		-- Fun page
-L2497		-- UI page
-L2520		-- ---------- 6. runtime state + logic ----------
-L2559			-- zoom limits
-L2567			-- lighting
-L2597			-- overlays
-L2603			-- UI look
-L2614			-- music volume
-L2617			-- stopwatch / timer / break reminder
-L2637			-- hide far players
-L2664			-- trail / aura (re-created after respawn)
-L2698			-- HUD text
-L2753		-- extra air jumps
-L2768		-- join / leave alerts
-L2776		-- camera: orbit / top-down / roll (runs right after Roblox's own camera update)
-L2804		-- main driver
-L2811			-- Sprint (the main loop adds SpeedBonus to WalkSpeed)
-L2835			-- float platform
-L2856			-- one-shot toggle edges (capture original values on, restore on off)
-L2913			-- day/night cycle runs every frame (smooth)
-L2918			-- rainbow border colour (read by the main loop)
-L2921			-- slow tick (4x per second), protected so one bad frame can't spam errors
-L2932		-- hide the pages we just created (Show also recolours the new tabs)
-L2942	-- ================= v4.1 EXTENSION MODULE (InstallV5) =================
-L2943	-- 50 tính năng còn thiếu của danh sách 150. Toàn bộ code mới nằm trong InstallV5()
-L2944	-- (cùng kiểu InstallV4, gọi bằng pcall) để không vượt giới hạn 200 local của chunk
-L2945	-- chính; nếu lỗi thì script v4.0 vẫn chạy bình thường.
-L2947		-- ===== 0. services + tham chiếu trang đã có =====
-L2950		-- trang đã có: tìm qua TabPageMap (key = tab, value = trang) -> không đụng code cũ
-L2956		-- ===== 1. helper dùng chung =====
-L2959		-- thêm tab mới giống mảng newTabDefs trong InstallV4
-L2982		-- GUI overlay riêng của v4.1 (stamina, biểu đồ, minimap, bánh xe emote...)
-L2990		-- ===== 2. nhật ký lỗi nội bộ (mục 140) =====
-L3002		-- ===== 3. tooltip (mục 126) =====
-L3025		-- ===== 4. helper copy / label / ô nhập (bản v4.1 vì bản của v4 nằm trong InstallV4) =====
-L3079		-- ===== 5. vùng chạm GUI (dành cho touch / Free Cam) =====
-L3094		-- ===== 6. nạp cấu hình đã lưu cho key mới (mục 132) =====
-L3112		-- ===== 7. động lực chạy chung =====
-L3118		-- ==================== ĐỢT A: Movement + Camera ====================
-L3120			-- --- key mới ---
-L3142			-- toggle di chuyển / camera không bao giờ tự bật lại ở lần vào sau
-L3153			-- --- trạng thái nội đợt ---
-L3175			-- ===== 17: tiêu stamina cho Sprint / Dash / Slide =====
-L3182			-- ===== 14: Air Dash (lao trên không) =====
-L3206			-- ===== 15: Slide (trượt) =====
-L3234			-- thanh stamina: tạo khi bật, hủy khi tắt
-L3240				-- [5] thanh stamina trên mobile nhích lên trên nút ảo jump của game
-L3268			-- nút ảo mobile: Crouch / Slide / Air Dash (cao 46px >= 36px)
-L3271				-- [9] vị trí có thể bị driver dịch trái khi FlyPad hiện (set lại mỗi frame ở dưới)
-L3319			-- nút ảo mobile cho Free Cam (6 nút, cùng vị trí với MovePad)
-L3372			-- ===== driver movement: chạy MỖI frame, sau driver v4.0, trước vòng lặp chính =====
-L3384				-- ===== 17: thanh stamina =====
-L3417				-- ===== SpeedBonus: CHỈ CỘNG thêm, không bao giờ ghi đè hum.WalkSpeed =====
-L3440				-- nếu driver v4.0 không chạy (lỗi) thì tự reset, tránh cộng dồn mỗi frame
-L3445				-- ===== 26: giới hạn tốc độ rơi =====
-L3453				-- ===== 4: Hover cho phép đi ngang =====
-L3469				-- ===== 9: Air Control =====
-L3483				-- ===== 34: khi Free Cam bật thì nhân vật đứng yên =====
-L3489				-- ===== 41 + 18 + 15: camera offset (lưu giá trị gốc, khôi phục khi tắt) =====
-L3510				-- ===== nút ảo mobile =====
-L3520				-- [9] FlyPad nằm ở (1,-16 / 0.55); MovePad/FreePad góc dưới phải phải dịch trái khi FlyPad hiện
-L3529			-- ===== driver camera: chạy trong RenderStep sau camera của game (priority Camera+2) =====
-L3534				-- ===== 34: Free Cam =====
-L3568				-- ===== 36: Shift Lock (bản client: xoay nhân vật theo hướng camera khi di chuyển) =====
-L3583				-- ===== 37 + 38: camera mượt + giảm rung màn hình =====
-L3622			-- nhìn bằng chuột phải / kéo touch (chỉ khi Free Cam đang bật)
-L3648			-- phím tắt đợt A (bỏ qua khi đang gõ chat / đang rebind)
-L3649			-- [1] mọi phím của v4.1 yêu cầu States.Hotkeys VÀ States.ExtraHotkeys đều bật
-L3670			-- ===== hàng UI đợt A =====
-L3708			-- tooltip cho các row của đợt A (mục 126)
-L3725			-- ===== TÍNH NĂNG MỚI: Ultimate ESP (highlight + tag tên/khoảng cách cho player & NPC) =====
-L3726			-- client-only: chỉ tạo Highlight/BillboardGui local, không gửi gì lên server
-L3733				-- gỡ sạch effect của 1 target (connection + instance)
-L3747				-- gỡ toàn bộ khi tắt toggle (đúng quy tắc: Disconnect + Destroy)
-L3755				-- target hop le: model co Humanoid va khong phai nhan vat minh
-L3765				-- tạo Highlight + BillboardGui tên/khoảng cách cho 1 model
-L3797						-- cập nhật tên + khoảng cách mỗi frame; tự gỡ khi model chết/respawn
-L3811				-- gắn ESP cho 1 object nếu là target (player khác = xanh, NPC = đỏ)
-L3818				-- toggle: quét hiện tại + theo dõi object mới (respawn/spawn)
-L3841		-- ==================== ĐỢT B: HUD + Light + Perf + Util ====================
-L3843			-- --- key mới ---
-L3873			-- tạo / hủy 1 effect trong Lighting (giống EnsureEffect của v4.0)
-L3889			-- ===== 103: gửi chat qua TextChatService (KHÔNG dùng Remote) =====
-L3890			-- [6] toggle Quick Chat điều khiển thật: tắt thì mọi nút gửi chat/emote báo bật Quick Chat trước
-L3908			-- [9] WidgetStack: gom các widget HUD trái vào 1 cột (UIListLayout) dưới nút JH/DASH,
-L3909			-- hết chồng lên nhau; từng widget vẫn kéo được và nhớ vị trí trong phiên
-L3924			-- đưa 1 widget vào stack (hoặc vị trí đã kéo trước đó); trả về frame để caller giữ tham chiếu
-L3936				-- kéo được (chuột + touch); thả thì ghi nhớ vị trí và thoát khỏi stack
-L3967			-- ===== 88 / 95: biểu đồ dạng thanh dọc =====
-L3975				-- [9] vào WidgetStack thay vì đặt cứng
-L4009			-- ===== 90: minimap đơn giản =====
-L4045			-- ===== 92: hiển thị phím bấm =====
-L4052				-- [9] Keystrokes chỉ dành cho PC: thiết bị touch tự tắt (không có bàn phím)
-L4094			-- ===== 93: bộ đếm CPS =====
-L4119			-- ===== 104: bánh xe emote =====
-L4173			-- ===== 102: lịch sử clipboard =====
-L4232			-- bọc Clip5 để mọi copy của v4.1 đều vào lịch sử
-L4243			-- ===== 72: Sky preset =====
-L4333			-- ===== 80: lưu / tải preset ánh sáng =====
-L4390			-- ===== 56: giảm chi tiết mesh =====
-L4417			-- ===== 63: đóng băng animation NPC ở xa =====
-L4459			-- ===== 65: ẩn GUI nặng của game theo tên =====
-L4499			-- một cặp connection duy nhất cho 3 tính năng bật theo toggle
-L4530			-- ===== driver của đợt B =====
-L4533				-- widget bật/tắt (tạo khi bật, Destroy khi tắt)
-L4565				-- 56 / 63 / 65: bật = quét 1 lần + gắn connection; tắt = khôi phục
-L4575				-- 92: hiện trạng thái phím mỗi frame
-L4578				-- 93: CPS
-L4593				-- 88: ping
-L4605				-- 95: FPS (frames đã được đếm trong BDriver mỗi frame)
-L4616				-- 90: minimap
-L4642				-- 77: Sun Rays
-L4654				-- 63: quét NPC định kỳ (4 lần/giây, chỉ danh sách NPC đã biết)
-L4658			-- ===== hàng UI đợt B =====
-L4718			-- tooltip đợt B
-L4738		-- ==================== ĐỢT C: UI + Settings ====================
-L4740			-- --- key mới (118, 122, 126, 129 + cài đặt) ---
-L4747			-- tab Cài đặt mới (thứ 12, nằm cuối thanh tab cuộn)
-L4750			-- nhớ phím mặc định TRƯỚC khi nạp file đã lưu (136)
-L4754			-- ===== file lưu riêng của v4.1: yêu thích / keybind / ngôn ngữ / auto-start =====
-L4765					-- [5] nạp kích thước menu đã lưu (mục 112)
-L4789						-- [5] lưu kích thước menu đã kéo (mục 112)
-L4797			-- [9] 138: AutoOn chỉ ghi States, việc áp dụng thật chuyển sang LateInit
-L4798			-- (sau khi mọi State của cả 4 đợt đã được tạo, kể cả key đợt D)
-L4815			-- ===== 118: Theme Sáng (đổi Background/Panel/Text chứ không chỉ accent) =====
-L4859			-- ===== 122: icon cho từng tab =====
-L4875			-- ===== 137: bảng dịch Việt/Anh (khớp với tên row đã RegisterSearch) =====
-L4942				-- v4.1
-L4969			-- ===== 137: áp dụng ngôn ngữ cho mọi row (giữ nguyên text gốc trong attribute) =====
-L4983			-- force = true khi đổi ngôn ngữ; force = false chỉ sửa lại các row đang hiển thị bản gốc
-L4997			-- ===== 126: tooltip giải thích (chuột = hover, touch = giữ 0.45s) =====
-L5044			-- ===== 125: Yêu thích - gắn ngôi sao vào MỖI row đã đăng ký =====
-L5060							-- ActionBtn: co nút lại, chừa 40px bên trái cho sao
-L5064							-- SliderRow: dời label + track sang phải
-L5070							-- ToggleBtn
-L5100			-- ===== 129: hiệu ứng ripple khi bấm =====
-L5157			-- ===== 130: responsive mobile/PC (chạy 4 lần/giây) =====
-L5163				-- [5] tôn trọng kích thước người dùng đã kéo: scale chỉ thu khi menu vượt viewport
-L5171				-- tab cao >= 36px trên mobile, trang trượt xuống cho khớp
-L5179			-- ===== 136: trình chỉnh phím tắt =====
-L5207					-- [7] chặn phím hệ thống nguy hiểm (Escape chỉ để hủy)
-L5210					-- [7] chống trùng: phím đã dùng cho action khác thì tự hoán đổi
-L5226			-- ===== 140: console/log lỗi nội bộ =====
-L5257			-- ===== 125: danh sách Yêu thích =====
-L5329			-- ===== 133: nhiều profile =====
-L5370			-- ===== 135: reset tất cả về mặc định =====
-L5410			-- ===== hàng UI đợt C (tab Set) =====
-L5464			-- [1] tổng công tắc cho các phím của v4.1 (E/V/P/Z/T/Y/U); cho phép lưu vào file cài đặt
-L5509			-- [5] mục 112 giờ LÀM ĐƯỢC: resize cửa sổ menu Jump Hub (không phải cửa sổ game)
-L5606			-- [5] mục 112: tay nắm kéo góc dưới phải của Main (chuột + touch), 280x300..560x720
-L5648			-- dịch thêm các row mới của v4.1
-L5666			-- ===== driver đợt C =====
-L5678				-- ActionBtn treen lay lai text goc Anh sau moi lan bam, sua lai 1s/lan
-L5697		-- ==================== ĐỢT D: Audio + Fun ====================
-L5699			-- --- key mới (141, 142, 144) ---
-L5717			-- ===== 141: âm lượng tổng (nhân toàn bộ Sound/AudioEmitter với 1 hệ số) =====
-L5720			-- [3] CHỈ xử lý Sound (AudioEmitter không có Volume); property access đều bọc pcall
-L5743			-- ===== 142: tắt nhạc nền game (đoán theo tên Sound / SoundGroup) =====
-L5775			-- ===== 144: âm click UI (thử nhiều ID, không tải được thì báo Không hỗ trợ) =====
-L5814			-- kết nối theo toggle: master/music (sound mới) + click (nút mới)
-L5862			-- ===== 103/149: gửi chat (bản riêng của đợt D, vì SendChat của đợt B nằm trong block khác) =====
-L5863			-- [8] gộp logic gửi chat + emote vào 1 chỗ; ưu tiên Humanoid:PlayEmote trước khi gửi /e qua chat
-L5878			-- [8] PlayEmote: ưu tiên Humanoid:PlayEmote (chạy ngay, không cần chat); không được mới gửi /e qua chat
-L5886				-- PlayEmote không chạy (R6 / game không bật emote): fallback qua chat
-L5892			-- ===== 150: easter egg (bàn phím + ô nhập cho mobile); [10] mã chữ đổi thành mã bí mật mới =====
-L5924			-- [10] chỉ còn 1 mã chữ bí mật (không phân biệt hoa thường, bỏ khoảng trắng 2 đầu); mã cũ đã bỏ
-L5934			-- phím tắt đợt D: emote wheel / dance / wave + dãy Konami (dãy Konami KHÔNG phụ thuộc Extra Hotkeys)
-L5939				-- [1] phím emote yêu cầu Hotkeys + ExtraHotkeys như các phím khác
-L5952			-- ===== hàng UI đợt D =====
-L5975			-- ===== driver đợt D =====
-L5989		-- ===== 8. vòng lặp của v4.1 =====
-L5990		-- Kết nối Ở ĐÂY (sau InstallV4, trước vòng lặp chính) để driver v4.0 đặt SpeedBonus
-L5991		-- trước, driver v4.1 cộng thêm sau, rồi vòng lặp chính mới ghi hum.WalkSpeed.
-L6039	-- ================= FUNCTIONALITY LOOP =================
-L6045	-- Using Heartbeat instead of RenderStepped: some executors/environments throttle or
-L6046	-- block RenderStepped from firing for LocalScripts (especially injected/executor-run
-L6047	-- scripts, as opposed to scripts placed directly in StarterPlayerScripts), which is
-L6048	-- what caused every feature - FPS counter, toggles, tab switching animations, all of
-L6049	-- which are driven from this single loop - to silently do nothing. Heartbeat runs on
-L6050	-- the physics step instead of the render step and is far more consistently available.
-L6079				-- NoClip turned off: give back collision to exactly the parts we disabled
-L6086			-- Fly: create/destroy the BodyVelocity+BodyGyro pair only on state change
-L6096			-- Hover: hold position in mid-air (paused while Fly is active)
-L6107			-- Auto Walk: keep moving forward relative to the camera
-L6112			-- Anti Fall Damage: cap the downward fall speed (skipped while Fly is on)
-L6123			-- Auto Jump: triggers a jump automatically whenever grounded, on a short
-L6124			-- interval so it doesn't spam ChangeState every single frame
-L6134		-- FPS/ping counter (no blocking Wait())
-L6148		-- Power Saver (formerly "Cap Frame Rate"): Roblox does not expose a script API to
-L6149		-- force a hard framerate cap - RenderStepped firing less often does NOT stop the
-L6150		-- engine from rendering frames underneath it. What this toggle actually does instead
-L6151		-- is throttle the UI's OWN cosmetic work (glow animation, FPS-color updates) down to
-L6152		-- ~10 updates/sec instead of every frame, freeing a small amount of CPU/battery on
-L6153		-- weaker mobile devices. It won't raise your in-game FPS ceiling, but it reduces the
-L6154		-- hub's own overhead to close to zero.
+L1923	-- Misc page: warnings, look & feel, saving, players, servers
+L1980	-- ================= v4.0 EXTENSION MODULE =================
+L1981	-- Everything new lives inside InstallV4() so it gets its own local-variable budget
+L1982	-- (the main chunk is already close to Luau's 200-locals limit).
+L1990		-- ---------- 1. new state / slider keys ----------
+L2020		-- movement / camera / fun toggles are never auto-restored on the next launch
+L2028		-- the save file was read before these keys existed, so read it again for them
+L2043		-- ---------- 2. small UI helpers ----------
+L2097		-- ---------- 3. scrolling tab bar + 6 new tabs ----------
+L2130		-- ---------- 4. extra overlay GUIs (HUD, bars, crosshair) ----------
+L2190		-- ---------- 5. UI ROWS ----------
+L2191		-- Move page (Page1) extras
+L2218		-- FPS page (Page4) extras
+L2248				-- leaving Ultra Low runs Battery Saver's restore pass first; wait for it to finish
+L2254		-- Cam page
+L2284		-- HUD page
+L2317		-- Light page
+L2365		-- Util page
+L2399		-- tiny safe calculator (no loadstring): + - * / ^ and parentheses
+L2476		-- Fun page
+L2510		-- UI page
+L2533		-- ---------- 6. runtime state + logic ----------
+L2572			-- zoom limits
+L2580			-- lighting
+L2610			-- overlays
+L2616			-- UI look
+L2627			-- music volume
+L2630			-- stopwatch / timer / break reminder
+L2650			-- hide far players
+L2677			-- trail / aura (re-created after respawn)
+L2711			-- HUD text
+L2766		-- extra air jumps
+L2781		-- join / leave alerts
+L2789		-- camera: orbit / top-down / roll (runs right after Roblox's own camera update)
+L2817		-- main driver
+L2824			-- Sprint (the main loop adds SpeedBonus to WalkSpeed)
+L2848			-- float platform
+L2869			-- one-shot toggle edges (capture original values on, restore on off)
+L2926			-- day/night cycle runs every frame (smooth)
+L2931			-- rainbow border colour (read by the main loop)
+L2934			-- slow tick (4x per second), protected so one bad frame can't spam errors
+L2945		-- hide the pages we just created (Show also recolours the new tabs)
+L2955	-- ================= v4.1 EXTENSION MODULE (InstallV5) =================
+L2956	-- 50 tính năng còn thiếu của danh sách 150. Toàn bộ code mới nằm trong InstallV5()
+L2957	-- (cùng kiểu InstallV4, gọi bằng pcall) để không vượt giới hạn 200 local của chunk
+L2958	-- chính; nếu lỗi thì script v4.0 vẫn chạy bình thường.
+L2960		-- ===== 0. services + tham chiếu trang đã có =====
+L2963		-- trang đã có: tìm qua TabPageMap (key = tab, value = trang) -> không đụng code cũ
+L2969		-- ===== 1. helper dùng chung =====
+L2972		-- thêm tab mới giống mảng newTabDefs trong InstallV4
+L2995		-- GUI overlay riêng của v4.1 (stamina, biểu đồ, minimap, bánh xe emote...)
+L3003		-- ===== 2. nhật ký lỗi nội bộ (mục 140) =====
+L3015		-- ===== 3. tooltip (mục 126) =====
+L3038		-- ===== 4. helper copy / label / ô nhập (bản v4.1 vì bản của v4 nằm trong InstallV4) =====
+L3092		-- ===== 5. vùng chạm GUI (dành cho touch / Free Cam) =====
+L3107		-- ===== 6. nạp cấu hình đã lưu cho key mới (mục 132) =====
+L3125		-- ===== 7. động lực chạy chung =====
+L3131		-- ==================== ĐỢT A: Movement + Camera ====================
+L3133			-- --- key mới ---
+L3155			-- toggle di chuyển / camera không bao giờ tự bật lại ở lần vào sau
+L3166			-- --- trạng thái nội đợt ---
+L3188			-- ===== 17: tiêu stamina cho Sprint / Dash / Slide =====
+L3195			-- ===== 14: Air Dash (lao trên không) =====
+L3219			-- ===== 15: Slide (trượt) =====
+L3247			-- thanh stamina: tạo khi bật, hủy khi tắt
+L3253				-- [5] thanh stamina trên mobile nhích lên trên nút ảo jump của game
+L3281			-- nút ảo mobile: Crouch / Slide / Air Dash (cao 46px >= 36px)
+L3284				-- [9] vị trí có thể bị driver dịch trái khi FlyPad hiện (set lại mỗi frame ở dưới)
+L3332			-- nút ảo mobile cho Free Cam (6 nút, cùng vị trí với MovePad)
+L3385			-- ===== driver movement: chạy MỖI frame, sau driver v4.0, trước vòng lặp chính =====
+L3397				-- ===== 17: thanh stamina =====
+L3430				-- ===== SpeedBonus: CHỈ CỘNG thêm, không bao giờ ghi đè hum.WalkSpeed =====
+L3453				-- nếu driver v4.0 không chạy (lỗi) thì tự reset, tránh cộng dồn mỗi frame
+L3458				-- ===== 26: giới hạn tốc độ rơi =====
+L3466				-- ===== 4: Hover cho phép đi ngang =====
+L3482				-- ===== 9: Air Control =====
+L3496				-- ===== 34: khi Free Cam bật thì nhân vật đứng yên =====
+L3502				-- ===== 41 + 18 + 15: camera offset (lưu giá trị gốc, khôi phục khi tắt) =====
+L3523				-- ===== nút ảo mobile =====
+L3533				-- [9] FlyPad nằm ở (1,-16 / 0.55); MovePad/FreePad góc dưới phải phải dịch trái khi FlyPad hiện
+L3542			-- ===== driver camera: chạy trong RenderStep sau camera của game (priority Camera+2) =====
+L3547				-- ===== 34: Free Cam =====
+L3581				-- ===== 36: Shift Lock (bản client: xoay nhân vật theo hướng camera khi di chuyển) =====
+L3596				-- ===== 37 + 38: camera mượt + giảm rung màn hình =====
+L3635			-- nhìn bằng chuột phải / kéo touch (chỉ khi Free Cam đang bật)
+L3661			-- phím tắt đợt A (bỏ qua khi đang gõ chat / đang rebind)
+L3662			-- [1] mọi phím của v4.1 yêu cầu States.Hotkeys VÀ States.ExtraHotkeys đều bật
+L3683			-- ===== hàng UI đợt A =====
+L3721			-- tooltip cho các row của đợt A (mục 126)
+L3738			-- ===== TÍNH NĂNG MỚI: Ultimate ESP (highlight + tag tên/khoảng cách cho player & NPC) =====
+L3739			-- client-only: chỉ tạo Highlight/BillboardGui local, không gửi gì lên server
+L3746				-- gỡ sạch effect của 1 target (connection + instance)
+L3760				-- gỡ toàn bộ khi tắt toggle (đúng quy tắc: Disconnect + Destroy)
+L3768				-- target hop le: model co Humanoid va khong phai nhan vat minh
+L3778				-- tạo Highlight + BillboardGui tên/khoảng cách cho 1 model
+L3810						-- cập nhật tên + khoảng cách mỗi frame; tự gỡ khi model chết/respawn
+L3824				-- gắn ESP cho 1 object nếu là target (player khác = xanh, NPC = đỏ)
+L3831				-- toggle: quét hiện tại + theo dõi object mới (respawn/spawn)
+L3854		-- ==================== ĐỢT B: HUD + Light + Perf + Util ====================
+L3856			-- --- key mới ---
+L3886			-- tạo / hủy 1 effect trong Lighting (giống EnsureEffect của v4.0)
+L3902			-- ===== 103: gửi chat qua TextChatService (KHÔNG dùng Remote) =====
+L3903			-- [6] toggle Quick Chat điều khiển thật: tắt thì mọi nút gửi chat/emote báo bật Quick Chat trước
+L3921			-- [9] WidgetStack: gom các widget HUD trái vào 1 cột (UIListLayout) dưới nút JH/DASH,
+L3922			-- hết chồng lên nhau; từng widget vẫn kéo được và nhớ vị trí trong phiên
+L3937			-- đưa 1 widget vào stack (hoặc vị trí đã kéo trước đó); trả về frame để caller giữ tham chiếu
+L3949				-- kéo được (chuột + touch); thả thì ghi nhớ vị trí và thoát khỏi stack
+L3980			-- ===== 88 / 95: biểu đồ dạng thanh dọc =====
+L3988				-- [9] vào WidgetStack thay vì đặt cứng
+L4022			-- ===== 90: minimap đơn giản =====
+L4058			-- ===== 92: hiển thị phím bấm =====
+L4065				-- [9] Keystrokes chỉ dành cho PC: thiết bị touch tự tắt (không có bàn phím)
+L4107			-- ===== 93: bộ đếm CPS =====
+L4132			-- ===== 104: bánh xe emote =====
+L4186			-- ===== 102: lịch sử clipboard =====
+L4245			-- bọc Clip5 để mọi copy của v4.1 đều vào lịch sử
+L4256			-- ===== 72: Sky preset =====
+L4346			-- ===== 80: lưu / tải preset ánh sáng =====
+L4403			-- ===== 56: giảm chi tiết mesh =====
+L4430			-- ===== 63: đóng băng animation NPC ở xa =====
+L4472			-- ===== 65: ẩn GUI nặng của game theo tên =====
+L4512			-- một cặp connection duy nhất cho 3 tính năng bật theo toggle
+L4543			-- ===== driver của đợt B =====
+L4546				-- widget bật/tắt (tạo khi bật, Destroy khi tắt)
+L4578				-- 56 / 63 / 65: bật = quét 1 lần + gắn connection; tắt = khôi phục
+L4588				-- 92: hiện trạng thái phím mỗi frame
+L4591				-- 93: CPS
+L4606				-- 88: ping
+L4618				-- 95: FPS (frames đã được đếm trong BDriver mỗi frame)
+L4629				-- 90: minimap
+L4655				-- 77: Sun Rays
+L4667				-- 63: quét NPC định kỳ (4 lần/giây, chỉ danh sách NPC đã biết)
+L4671			-- ===== hàng UI đợt B =====
+L4731			-- tooltip đợt B
+L4751		-- ==================== ĐỢT C: UI + Settings ====================
+L4753			-- --- key mới (118, 122, 126, 129 + cài đặt) ---
+L4760			-- tab Cài đặt mới (thứ 12, nằm cuối thanh tab cuộn)
+L4763			-- nhớ phím mặc định TRƯỚC khi nạp file đã lưu (136)
+L4767			-- ===== file lưu riêng của v4.1: yêu thích / keybind / ngôn ngữ / auto-start =====
+L4778					-- [5] nạp kích thước menu đã lưu (mục 112)
+L4802						-- [5] lưu kích thước menu đã kéo (mục 112)
+L4810			-- [9] 138: AutoOn chỉ ghi States, việc áp dụng thật chuyển sang LateInit
+L4811			-- (sau khi mọi State của cả 4 đợt đã được tạo, kể cả key đợt D)
+L4828			-- ===== 118: Theme Sáng (đổi Background/Panel/Text chứ không chỉ accent) =====
+L4872			-- ===== 122: icon cho từng tab =====
+L4888			-- ===== 137: bảng dịch Việt/Anh (khớp với tên row đã RegisterSearch) =====
+L4955				-- v4.1
+L4982			-- ===== 137: áp dụng ngôn ngữ cho mọi row (giữ nguyên text gốc trong attribute) =====
+L4996			-- force = true khi đổi ngôn ngữ; force = false chỉ sửa lại các row đang hiển thị bản gốc
+L5010			-- ===== 126: tooltip giải thích (chuột = hover, touch = giữ 0.45s) =====
+L5057			-- ===== 125: Yêu thích - gắn ngôi sao vào MỖI row đã đăng ký =====
+L5073							-- ActionBtn: co nút lại, chừa 40px bên trái cho sao
+L5077							-- SliderRow: dời label + track sang phải
+L5083							-- ToggleBtn
+L5113			-- ===== 129: hiệu ứng ripple khi bấm =====
+L5170			-- ===== 130: responsive mobile/PC (chạy 4 lần/giây) =====
+L5176				-- [5] tôn trọng kích thước người dùng đã kéo: scale chỉ thu khi menu vượt viewport
+L5184				-- tab cao >= 36px trên mobile, trang trượt xuống cho khớp
+L5192			-- ===== 136: trình chỉnh phím tắt =====
+L5220					-- [7] chặn phím hệ thống nguy hiểm (Escape chỉ để hủy)
+L5223					-- [7] chống trùng: phím đã dùng cho action khác thì tự hoán đổi
+L5239			-- ===== 140: console/log lỗi nội bộ =====
+L5270			-- ===== 125: danh sách Yêu thích =====
+L5342			-- ===== 133: nhiều profile =====
+L5383			-- ===== 135: reset tất cả về mặc định =====
+L5423			-- ===== hàng UI đợt C (tab Set) =====
+L5477			-- [1] tổng công tắc cho các phím của v4.1 (E/V/P/Z/T/Y/U); cho phép lưu vào file cài đặt
+L5522			-- [5] mục 112 giờ LÀM ĐƯỢC: resize cửa sổ menu Jump Hub (không phải cửa sổ game)
+L5619			-- [5] mục 112: tay nắm kéo góc dưới phải của Main (chuột + touch), 280x300..560x720
+L5661			-- dịch thêm các row mới của v4.1
+L5679			-- ===== driver đợt C =====
+L5691				-- ActionBtn treen lay lai text goc Anh sau moi lan bam, sua lai 1s/lan
+L5710		-- ==================== ĐỢT D: Audio + Fun ====================
+L5712			-- --- key mới (141, 142, 144) ---
+L5730			-- ===== 141: âm lượng tổng (nhân toàn bộ Sound/AudioEmitter với 1 hệ số) =====
+L5733			-- [3] CHỈ xử lý Sound (AudioEmitter không có Volume); property access đều bọc pcall
+L5756			-- ===== 142: tắt nhạc nền game (đoán theo tên Sound / SoundGroup) =====
+L5788			-- ===== 144: âm click UI (thử nhiều ID, không tải được thì báo Không hỗ trợ) =====
+L5827			-- kết nối theo toggle: master/music (sound mới) + click (nút mới)
+L5875			-- ===== 103/149: gửi chat (bản riêng của đợt D, vì SendChat của đợt B nằm trong block khác) =====
+L5876			-- [8] gộp logic gửi chat + emote vào 1 chỗ; ưu tiên Humanoid:PlayEmote trước khi gửi /e qua chat
+L5891			-- [8] PlayEmote: ưu tiên Humanoid:PlayEmote (chạy ngay, không cần chat); không được mới gửi /e qua chat
+L5899				-- PlayEmote không chạy (R6 / game không bật emote): fallback qua chat
+L5905			-- ===== 150: easter egg (bàn phím + ô nhập cho mobile); [10] mã chữ đổi thành mã bí mật mới =====
+L5937			-- [10] chỉ còn 1 mã chữ bí mật (không phân biệt hoa thường, bỏ khoảng trắng 2 đầu); mã cũ đã bỏ
+L5947			-- phím tắt đợt D: emote wheel / dance / wave + dãy Konami (dãy Konami KHÔNG phụ thuộc Extra Hotkeys)
+L5952				-- [1] phím emote yêu cầu Hotkeys + ExtraHotkeys như các phím khác
+L5965			-- ===== hàng UI đợt D =====
+L5988			-- ===== driver đợt D =====
+L6002		-- ===== 8. vòng lặp của v4.1 =====
+L6003		-- Kết nối Ở ĐÂY (sau InstallV4, trước vòng lặp chính) để driver v4.0 đặt SpeedBonus
+L6004		-- trước, driver v4.1 cộng thêm sau, rồi vòng lặp chính mới ghi hum.WalkSpeed.
+L6052	-- ================= FUNCTIONALITY LOOP =================
+L6058	-- Using Heartbeat instead of RenderStepped: some executors/environments throttle or
+L6059	-- block RenderStepped from firing for LocalScripts (especially injected/executor-run
+L6060	-- scripts, as opposed to scripts placed directly in StarterPlayerScripts), which is
+L6061	-- what caused every feature - FPS counter, toggles, tab switching animations, all of
+L6062	-- which are driven from this single loop - to silently do nothing. Heartbeat runs on
+L6063	-- the physics step instead of the render step and is far more consistently available.
+L6092				-- NoClip turned off: give back collision to exactly the parts we disabled
+L6099			-- Fly: create/destroy the BodyVelocity+BodyGyro pair only on state change
+L6109			-- Hover: hold position in mid-air (paused while Fly is active)
+L6120			-- Auto Walk now lives in its own PreSimulation connection below this loop
+L6121			-- (see the comment there) - a Move() here, inside Heartbeat, was too late
+L6122			-- to move the character.
+L6124			-- Anti Fall Damage: cap the downward fall speed (skipped while Fly is on)
+L6135			-- Auto Jump: triggers a jump automatically whenever grounded, on a short
+L6136			-- interval so it doesn't spam ChangeState every single frame
+L6146		-- FPS/ping counter (no blocking Wait())
+L6160		-- Power Saver (formerly "Cap Frame Rate"): Roblox does not expose a script API to
+L6161		-- force a hard framerate cap - RenderStepped firing less often does NOT stop the
+L6162		-- engine from rendering frames underneath it. What this toggle actually does instead
+L6163		-- is throttle the UI's OWN cosmetic work (glow animation, FPS-color updates) down to
+L6164		-- ~10 updates/sec instead of every frame, freeing a small amount of CPU/battery on
+L6165		-- weaker mobile devices. It won't raise your in-game FPS ceiling, but it reduces the
+L6166		-- hub's own overhead to close to zero.
+L6191	-- Auto Walk: keep moving forward relative to the camera.
+L6192	-- It must be applied in PreSimulation (before the physics step), NOT Heartbeat:
+L6193	-- Roblox's own PlayerModule writes the humanoid's move direction from a
+L6194	-- RenderStepped callback (a zero vector whenever no movement key is held), and
+L6195	-- Heartbeat fires AFTER physics - so a Move() issued there never affected the
+L6196	-- current step and was overwritten by the next control-module update before the
+L6197	-- next one. That is why the toggle used to do nothing. PreSimulation fires after
+L6198	-- the control module and before physics, so our direction is the last one written.
