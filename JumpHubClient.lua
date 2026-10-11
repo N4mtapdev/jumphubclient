@@ -85,6 +85,7 @@ local Sliders = {
 	AutoFPS = 30,     -- Auto Low-GFX trigger threshold
 	DashPower = 120,
 	CullDist = 200,   -- Distance Cull radius (studs)
+	MacroPlaySpeed = 1, -- [15] hệ số tốc độ phát macro
 }
 local DefaultGravity, DefaultFOV = Sliders.Gravity, Sliders.FOV
 
@@ -303,8 +304,8 @@ end
 -- ================= CONTENT PAGES =================
 local function NewPage()
 	local f = Instance.new("ScrollingFrame")
-	f.Size = UDim2.new(1, -20, 1, -96)
-	f.Position = UDim2.new(0, 10, 0, 92)
+	f.Size = UDim2.new(1, -20, 1, -136) -- [20] chừa chỗ cho search + GroupBar + TabBar
+	f.Position = UDim2.new(0, 10, 0, 132)
 	f.BackgroundTransparency = 1
 	f.BorderSizePixel = 0
 	f.ScrollBarThickness = 3
@@ -326,6 +327,7 @@ print("[JumpHub] 5 pages created OK")
 
 local CurrentPage = Page1
 local RunSearch, RestoreSearchRows -- assigned once the search registry exists (below)
+local GroupShower -- [20] hàm cập nhật UI 2 tầng (gán ở GroupBar bên dưới)
 
 local function Show(target)
 	CurrentPage = target
@@ -335,13 +337,14 @@ local function Show(target)
 		tween(tab, {BackgroundColor3 = active and Theme.Accent or Theme.Panel})
 		tab.TextColor3 = active and Theme.Text or Theme.SubText
 	end
-	-- Search results are real rows borrowed from the other pages: borrow while on "Find",
-	-- hand them back as soon as any other tab is opened.
+-- Search results are real rows borrowed from the other pages: borrow while on "Find",
+-- hand them back as soon as any other tab is opened.
 	if target == Page5 then
 		if RunSearch then RunSearch() end
 	elseif RestoreSearchRows then
 		RestoreSearchRows()
 	end
+	if GroupShower then GroupShower(target) end -- [20] cập nhật highlight nhóm + tab con
 end
 
 for tab, page in pairs(TabPageMap) do
@@ -352,6 +355,106 @@ for tab, page in pairs(TabPageMap) do
 end
 Show(Page1)
 print("[JumpHub] UI fully built, Show(Page1) called")
+
+-- ================= [20] UI 2 TẠNG: 5 NHÓM TẦNG 1 + TAB CON TẦNG 2 =================
+-- Tầng 1 = GroupBar (5 nút nhóm lớn, đủ cao bấm bằng ngón tay trên mobile).
+-- Tầng 2 = TabBar có sẵn (Giờ LÀ tab con, chỉ hiện khi nhóm tương ứng được chọn).
+-- Nội dung trong từng trang KHÔNG đổi — chỉ đổi cách điều hướng.
+do
+	-- khoảng cách search (giữa Top bar và GroupBar)
+	SearchBox.Parent = Main
+	SearchBox.Position = UDim2.new(0, 10, 0, 48)
+	SearchBox.Size = UDim2.new(1, -20, 0, 34)
+	SearchBox.LayoutOrder = nil
+
+	GroupBarUI = Instance.new("Frame", Main)
+	GroupBarUI.Name = "JH_GroupBar"
+	GroupBarUI.Position = UDim2.new(0, 10, 0, 86)
+	GroupBarUI.Size = UDim2.new(1, -20, 0, 36)
+	GroupBarUI.BackgroundTransparency = 1
+	do
+		local lay = Instance.new("UIListLayout", GroupBarUI)
+		lay.FillDirection = Enum.FillDirection.Horizontal
+		lay.Padding = UDim.new(0, 6)
+		lay.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+
+	--TabBar (tầng 2) giờ cần ẩn/hiện theo nhóm; dịch xuống dưới GroupBar
+	TabBar.Position = UDim2.new(0, 10, 0, 126)
+
+	-- mỗi nhóm: 5 nhóm lớn, mỗi nhóm có 1 hay nhiều tab con
+	-- 1) Group khi mở mặc định (Movement)
+	-- 2) Visual  (Cam + Light + UI)
+	-- 3) Performance (FPS + Misc phần đồ ho)
+	-- 4) Info (HUD + Find + Util)
+	-- 5) Settings (Set + Fun + Misc phần còn lại)
+	local TogglePages = {
+		{Label = "Movement", Order = 1, Tabs = {"Move", "Player"}},
+		{Label = "Visual", Order = 2, Tabs = {"Cam", "Light", "UI"}},
+		{Label = "Performance", Order = 3, Tabs = {"FPS", "Misc"}},
+		{Label = "Info", Order = 4, Tabs = {"HUD", "Find", "Util"}},
+		{Label = "Settings", Order = 5, Tabs = {"Set", "Fun"}},
+	}
+	-- Mapping: thông qua tên Tab -> Page (TabPageMap.key.Text)
+	local nameToPage = {}
+	for tab, page in pairs(TabPageMap) do
+		nameToPage[tab.Text] = page
+	end
+
+	local function groupShower(target)
+		for _, g in ipairs(GroupBarUI:GetChildren()) do
+			if g:IsA("TextButton") then
+				local members = {}
+				for k, page2 in pairs(TabPageMap) do
+					for _, tabName in ipairs(g:GetAttribute("JHTabs") or {}) do
+						if k.Text == tabName then table.insert(members, page2) end
+					end
+				end
+				local isMine = false
+				for _, mp in ipairs(members) do
+					if mp == target then isMine = true break end
+				end
+				g.BackgroundColor3 = isMine and Theme.Accent or Theme.Panel
+				g.TextColor3 = isMine and Theme.Text or Theme.SubText
+			end
+		end
+	end
+	GroupShower = groupShower -- gán để Show() gọi được
+
+	for _, groupDef in ipairs(TogglePages) do
+		local b = Instance.new("TextButton", GroupBarUI)
+		b.Size = UDim2.new(1 / 5, -5, 1, 0) -- đủ cao bấm ngón tay (mobile)
+		b.Text = groupDef.Label
+		b.Font = Enum.Font.GothamBold
+		b.TextSize = 12
+		b.TextColor3 = Theme.SubText
+		b.BackgroundColor3 = Theme.Panel
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = false
+		b.LayoutOrder = groupDef.Order
+		b:SetAttribute("JHTabs", groupDef.Tabs)
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+		b.MouseButton1Click:Connect(function()
+			for _, tabName in ipairs(groupDef.Tabs) do
+				local page2 = nameToPage[tabName]
+				if page2 then
+					Show(page2)
+					break
+				end
+			end
+		end)
+	end
+
+	-- [20] Search LUÔN hiển thị: gõ là tự lọc ngay (không cần bấm vào tab Find trước)
+	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		if SearchBox.Text ~= "" then
+			RunSearch()
+		else
+			RestoreSearchRows()
+		end
+	end)
+	GroupShower(Page1)
+end
 
 -- ================= TOGGLE BUTTON CREATOR =================
 local ToggleRefreshers = {} -- stateKey -> refresh function, so Restore/reset buttons can sync switch visuals
@@ -1901,6 +2004,213 @@ ActionBtn(Page2, "Teleport to Slot", 8, function()
 end)
 
 ToggleBtn(Page2, "Auto Walk (forward)", "AutoWalk", 9)
+
+-- ================= [19] WAYPOINT CÓ TÊN + ICON (thay thế 3 slot cũ) =================
+-- Danh sách không giới hạn, mỗi waypoint gồm {Icon, Name, Position}. Lưu file riêng
+-- JumpHub_Waypoints.json (pcall): không có executor có writefile thì vẫn dùng được trong phiên.
+local WAYPOINT_FILE = "JumpHub_Waypoints.json"
+local WaypointIcons = {"◆", "◆", "■", "▲", "★", "✿"} -- 6 ký tự text, an toàn mọi executor
+local Waypoints = {} -- môt là bảng chính: {Icon=, Name=, X=, Y=, Z=} (không CFrame vì cần serialize)
+do
+	local okR, data = pcall(function()
+		if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" or not isfile(WAYPOINT_FILE) then return nil end
+		return HttpService:JSONDecode(readfile(WAYPOINT_FILE))
+	end)
+	if okR and type(data) == "table" and type(data.Waypoints) == "table" then
+		for _, w in ipairs(data.Waypoints) do
+			if type(w) == "table" and type(w.X) == "number" and type(w.Y) == "number" and type(w.Z) == "number" then
+				local icon = w.Icon
+				if type(icon) ~= "string" then icon = WaypointIcons[1] end -- icon không hợp lệ thì về ◆
+				table.insert(Waypoints, {Icon = icon, Name = tostring(w.Name or ""), X = w.X, Y = w.Y, Z = w.Z})
+			end
+		end
+	end
+end
+
+local function SaveWaypoints()
+	if typeof(writefile) ~= "function" then return "Executor can't save" end
+	local ok = pcall(function() writefile(WAYPOINT_FILE, HttpService:JSONEncode({Waypoints = Waypoints})) end)
+	return ok and "Waypoints saved!" or "Save failed"
+end
+
+local wpNamer -- ô nhập tên mới (khai báo trước vì dùng trước gán)
+local wpIconSel = WaypointIcons[1]
+local wpListScroll -- ScrollingFrame danh sách waypoint
+local RenderWaypoints -- khai báo trước (gọi trong block do ở trên); gán = nil để analyze im
+local function WaypointTeleport(w)
+	local char = Player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not (char and root) then return "No character" end
+	char:PivotTo(CFrame.new(w.X, w.Y, w.Z))
+	root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) -- dừng ngay, tránh rơi tiếp sau TP
+	return ("Teleported to %s"):format(w.Name ~= "" and ("'" .. w.Name .. "'") or "waypoint")
+end
+
+-- Hàng UI Waypoint: đặt ngay sau toggle Auto Walk
+ActionBtn(Page2, "Waypoint: Save Position Here", 9.5, function()
+	local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return "No character" end
+	local name = ""
+	if wpNamer then name = wpNamer.Text:gsub("^%s+", ""):gsub("%s+$", "") wpNamer.Text = "" end
+	table.insert(Waypoints, {Icon = wpIconSel, Name = name, X = root.Position.X, Y = root.Position.Y, Z = root.Position.Z})
+	local msg = SaveWaypoints()
+	return ("Saved (%d total) | %s"):format(#Waypoints, msg)
+end)
+
+do
+	local iconRow = Instance.new("Frame", Page2)
+	iconRow.Size = UDim2.new(1, 0, 0, 44)
+	iconRow.LayoutOrder = 9.6
+	iconRow.BackgroundColor3 = Theme.Panel
+	Instance.new("UICorner", iconRow).CornerRadius = UDim.new(0, 8)
+
+	-- 6 nút icon; icon đang chọn có nền Accent
+	do
+		local iconLbl = Instance.new("TextLabel", iconRow)
+		iconLbl.Size = UDim2.new(0, 70, 1, 0)
+		iconLbl.Text = "Icon: "
+		iconLbl.Font = Enum.Font.GothamMedium
+		iconLbl.TextSize = 13
+		iconLbl.TextColor3 = Theme.SubText
+		iconLbl.TextXAlignment = Enum.TextXAlignment.Left
+		iconLbl.BackgroundTransparency = 1
+		for i, ic in ipairs(WaypointIcons) do
+			local b = Instance.new("TextButton", iconRow)
+			b.Size = UDim2.new(0, 36, 0, 36)
+			b.Position = UDim2.new(0, 70 + (i - 1) * 40, 0.5, -18)
+			b.Text = ic
+			b.Font = Enum.Font.GothamBold
+			b.TextSize = 16
+			b.TextColor3 = Theme.Text
+			b.BackgroundColor3 = (ic == wpIconSel) and Theme.Accent or Theme.Off
+			b.BorderSizePixel = 0
+			b.AutoButtonColor = false
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+			b.MouseButton1Click:Connect(function()
+				wpIconSel = ic
+				-- Stream toàn bộ 6 nút → chỉ nút đang chọn là màu Accent
+				for _, sib in ipairs(iconRow:GetChildren()) do
+					if sib:IsA("TextButton") then
+						sib.BackgroundColor3 = (sib.Text == wpIconSel) and Theme.Accent or Theme.Off
+					end
+				end
+			end)
+		end
+	end
+
+	wpNamer = Instance.new("TextBox", Page2)
+	wpNamer.Size = UDim2.new(1, 0, 0, 36)
+	wpNamer.LayoutOrder = 9.7
+	wpNamer.BackgroundColor3 = Theme.Panel
+	wpNamer.BorderSizePixel = 0
+	wpNamer.PlaceholderText = "Tên waypoint (tùy chọn)..."
+	wpNamer.PlaceholderColor3 = Theme.SubText
+	wpNamer.Text = ""
+	wpNamer.ClearTextOnFocus = false
+	wpNamer.Font = Enum.Font.GothamMedium
+	wpNamer.TextSize = 13
+	wpNamer.TextColor3 = Theme.Text
+	Instance.new("UICorner", wpNamer).CornerRadius = UDim.new(0, 8)
+
+	-- danh sách waypoint (ScrollingFrame), 1 hàng = 1 waypoint
+	wpListScroll = Instance.new("ScrollingFrame", Page2)
+	wpListScroll.Size = UDim2.new(1, 0, 0, 150)
+	wpListScroll.LayoutOrder = 9.8
+	wpListScroll.BackgroundColor3 = Theme.Panel
+	wpListScroll.BorderSizePixel = 0
+	wpListScroll.ScrollBarThickness = 3
+	wpListScroll.ScrollBarImageColor3 = Theme.Accent
+	wpListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	wpListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	do
+		local lay = Instance.new("UIListLayout", wpListScroll)
+		lay.Padding = UDim.new(0, 4)
+		lay.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+
+	-- nút để clear toàn bộ (dun nép ngay dưới danh sách)
+	ActionBtn(Page2, "Waypoint: Delete ALL", 9.9, function()
+		local n = #Waypoints
+		table.clear(Waypoints)
+		local msg = SaveWaypoints()
+		RenderWaypoints()
+		return ("Deleted %d | %s"):format(n, msg)
+	end)
+end
+
+-- Render mỗi 1 hàng Waypoint: icon + tên, nút TP, nút Xóa; gọi lại sau Save/Delete
+RenderWaypoints = function()
+	if not wpListScroll then return end
+	for _, ch in ipairs(wpListScroll:GetChildren()) do
+		if not ch:IsA("UIListLayout") then ch:Destroy() end
+	end
+	if #Waypoints == 0 then
+		local l = Instance.new("TextLabel", wpListScroll)
+		l.Size = UDim2.new(1, -6, 0, 30)
+		l.LayoutOrder = 1
+		l.BackgroundTransparency = 1
+		l.Font = Enum.Font.Gotham
+		l.TextSize = 12
+		l.TextColor3 = Theme.SubText
+		l.Text = "(chua co waypoint - bam Save Position Here de them)"
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		return
+	end
+	for i, w in ipairs(Waypoints) do
+		-- c thu i lam local riêng để closure không lấy nhầm
+		local curW = w
+		local curIdx = i
+		local row = Instance.new("Frame", wpListScroll)
+		row.Size = UDim2.new(1, -6, 0, 34)
+		row.LayoutOrder = curIdx
+		row.BackgroundColor3 = Theme.Background
+		row.BorderSizePixel = 0
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+		local ib = Instance.new("TextButton", row)
+		ib.Size = UDim2.new(0, 30, 1, 0)
+		ib.Text = curW.Icon
+		ib.Font = Enum.Font.GothamBold
+		ib.TextSize = 14
+		ib.TextColor3 = Theme.AccentAlt
+		ib.BackgroundTransparency = 1
+		ib.BorderSizePixel = 0
+		ib.AutoButtonColor = false
+		local lbl = Instance.new("TextButton", row)
+		lbl.Position = UDim2.new(0, 32, 0, 0)
+		lbl.Size = UDim2.new(1, -78, 1, 0)
+		lbl.Text = (curW.Name ~= "") and (curW.Name .. "  [" .. curIdx .. "]") or ("(no name) [" .. curIdx .. "]")
+		lbl.Font = Enum.Font.GothamMedium
+		lbl.TextSize = 12
+		lbl.TextColor3 = Theme.Text
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.BackgroundTransparency = 1
+		lbl.BorderSizePixel = 0
+		lbl.AutoButtonColor = false
+		local del = Instance.new("TextButton", row)
+		del.Position = UDim2.new(1, -46, 0.5, -14)
+		del.Size = UDim2.new(0, 44, 0, 28)
+		del.Text = "X"
+		del.Font = Enum.Font.GothamBold
+		del.TextSize = 13
+		del.TextColor3 = Theme.Danger
+		del.BackgroundColor3 = Theme.Off
+		del.BorderSizePixel = 0
+		del.AutoButtonColor = false
+		Instance.new("UICorner", del).CornerRadius = UDim.new(0, 6)
+		-- bấm tên/icon = TP; bấm X = xóa riêng waypoint đó
+		local function doTeleport()
+			Notify(WaypointTeleport(curW), Theme.On)
+		end
+		ib.MouseButton1Click:Connect(doTeleport)
+		lbl.MouseButton1Click:Connect(doTeleport)
+		del.MouseButton1Click:Connect(function()
+			table.remove(Waypoints, curIdx)
+			SaveWaypoints()
+			RenderWaypoints()
+		end)
+	end
+end
+RenderWaypoints() -- vẽ danh sách lần đầu (đã nạp từ file)
 ToggleBtn(Page2, "Anti Fall Damage", "AntiFall", 10)
 ToggleBtn(Page2, "Click Teleport (tap / Ctrl+Click)", "ClickTP", 11)
 ToggleBtn(Page2, "Dash Button (on screen)", "DashButton", 12)
@@ -1919,6 +2229,176 @@ ActionBtn(Page2, "Quick Heal (full HP)", 15, function()
 	end
 	return ("HP %d/%d - game kept the damage"):format(now, max)
 end)
+
+-- ================= [15] MACRO GHI / PHÁT LẠI ĐƯỜNG ĐI =================
+-- Nút Record: mỗi 0.2s lưu root.CFrame vào bảng trong bộ nhớ (không chạm file).
+-- Stop: dừng ghi. Play: teleport tuần tự qua các điểm đã ghi, tốc độ theo slider.
+-- Save Macro / Load Macro: ghi/đọc file JSON riêng qua writefile/readfile (bọc pcall).
+-- Giới hạn ghi 10 phút (600s / 0.2s = 3000 điểm) để bảng không phình to vô hạn.
+local MACRO_FILE_PREFIX = "JumpHub_Macro_"
+local MacroPoints = {}      -- { CFrame... } in-memory, nothing writes to disk automatically
+local MacroRecording = false
+local MacroPlaying = false
+local MacroRecordStart = 0
+local MacroRecordConn = nil
+local MacroPlayConn = nil
+
+local function MacroStopRecord(cancelled)
+	if MacroRecordConn then MacroRecordConn:Disconnect() MacroRecordConn = nil end
+	MacroRecording = false
+	local secs = math.floor(tick() - MacroRecordStart)
+	if cancelled then
+		table.clear(MacroPoints)
+		return ("Record cancelled (%ds)"):format(secs)
+	end
+	return ("Recorded %d pts / %ds"):format(#MacroPoints, secs)
+end
+
+local function MacroStopPlay()
+	if MacroPlayConn then MacroPlayConn:Disconnect() MacroPlayConn = nil end
+	MacroPlaying = false
+end
+
+		-- ================= [16] PANIC (F12): TAT NGAY toan bo tinh nang =================
+		-- Phim coidinh F12, khong cho doi qua keybind editor (tranh nham). Khong tween,
+		-- khong xac nhan: moi State chay that (di chuyen/do hoa/fun...) ve false tuc thi;
+		-- chi giu cac State chi doc (HUD hien thi) va cai dat giao dien. F12 van hoa ngay
+		-- ca khi processed (dang go trong chat) vi panic phai tan cong tuc thi.
+		local PanicKeep = {
+			Hotkeys = true, ExtraHotkeys = true, Tooltips = true, TabIcons = true,
+			LightUI = true, Ripple = true, ChatQuick = true, ClipHistory = true,
+			EmoteWheel = true, JoinAlerts = true, LagWarn = true, ThemeAuto = true, BreakRemind = true,
+		}
+		local function PanicAll()
+			if MacroRecording then MacroStopRecord(true) end -- huy ban ghi dang chay do
+			if MacroPlaying then MacroStopPlay() end
+			for k, v in pairs(States) do
+				if v == true and not PanicKeep[k] and k:sub(1, 3) ~= "HUD" then
+					States[k] = false
+				end
+			end
+			for _, r in pairs(ToggleRefreshers) do pcall(r) end
+			-- AutoWalk/bay dang lam vel: zero ngay, khong cho van toc du chay qua khung ke
+			local root = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+			if root and root.Parent then root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end
+			Notify("PANIC! Tat toan bo tinh nang (F12)", Theme.Danger)
+		end
+		UIS.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.F12 then
+				PanicAll() -- chay ke ca processed: phai tat nap chong
+			end
+		end)
+
+-- Ghi mỗi 0.2s bằng Heartbeat + bộ đếm thời gian (đơn giản, chính xác đủ dùng).
+ActionBtn(Page2, "Macro: Record", 16, function()
+	if MacroRecording then return "Already recording" end
+	local char = Player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return "No character" end
+	MacroStopPlay() -- ghi đè trạng thái Play nếu đang phát
+	table.clear(MacroPoints)
+	MacroRecording = true
+	MacroRecordStart = tick()
+	local elapsed = 0
+	MacroRecordConn = RunService.Heartbeat:Connect(function(dt)
+		elapsed += dt
+		if elapsed >= 0.2 then
+			elapsed = 0
+			local r = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+			if not r then
+				Notify(MacroStopRecord(false), Theme.Danger)
+				return
+			end
+			table.insert(MacroPoints, r.CFrame)
+			if tick() - MacroRecordStart >= 600 then -- auto-stop tại 10 phút
+				Notify(MacroStopRecord(false), Theme.On)
+			end
+		end
+	end)
+	return "Recording... (10 min max)"
+end)
+
+ActionBtn(Page2, "Macro: Stop", 17, function()
+	if MacroRecording then return MacroStopRecord(false) end
+	if MacroPlaying then
+		MacroStopPlay()
+		return "Playback stopped"
+	end
+	return "Nothing running"
+end)
+
+ActionBtn(Page2, "Macro: Play", 18, function()
+	if MacroPlaying then return "Already playing" end
+	if #MacroPoints == 0 then return "No points recorded" end
+	local char = Player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root then return "No character" end
+	MacroRecording = false -- dừng ghi nếu đang ghi
+	if MacroRecordConn then MacroRecordConn:Disconnect() MacroRecordConn = nil end
+	MacroPlaying = true
+	local idx = 1
+	local acc = 0
+	MacroPlayConn = RunService.Heartbeat:Connect(function(dt)
+		acc += dt
+		-- phát 1 điểm mỗi (0.2 / MacroPlaySpeed) giây: speed 1 = đúng tốc ghi, 2 = nhanh gấp đôi...
+		local step = math.max(0.2 / math.max(Sliders.MacroPlaySpeed or 1, 0.1), 0.03)
+		while acc >= step and idx <= #MacroPoints do
+			acc -= step
+			local c = Player.Character
+			local r = c and c:FindFirstChild("HumanoidRootPart")
+			if not r then MacroStopPlay() return end
+			pcall(function() c:PivotTo(MacroPoints[idx]) end)
+			idx += 1
+		end
+		if idx > #MacroPoints then
+			Notify(("Playback done: %d pts"):format(#MacroPoints), Theme.On)
+			MacroStopPlay()
+		end
+	end)
+	return ("Playing %d pts"):format(#MacroPoints)
+end)
+
+ActionBtn(Page2, "Macro: Save to file", 19, function()
+	if typeof(writefile) ~= "function" then return "Executor can't save" end
+	if #MacroPoints == 0 then return "No points recorded" end
+	local serialized = {}
+	for _, cf in ipairs(MacroPoints) do
+		local p = cf.Position -- chỉ lưu vị trí đủ dùng cho teleport
+		table.insert(serialized, {math.floor(p.X * 1000 + 0.5) / 1000, math.floor(p.Y * 1000 + 0.5) / 1000, math.floor(p.Z * 1000 + 0.5) / 1000})
+	end
+	local name = ("JumpHub_Macro_%s.json"):format(os.date("%Y%m%d_%H%M%S"))
+	local ok, err = pcall(function()
+		writefile(name, HttpService:JSONEncode({Points = serialized, Interval = 0.2}))
+	end)
+	return ok and ("Saved: " .. name) or ("Save failed: " .. tostring(err))
+end)
+
+ActionBtn(Page2, "Macro: Load latest", 20, function()
+	if typeof(isfile) ~= "function" or typeof(listfiles) ~= "function" then return "Executor can't load" end
+	MacroStopPlay()
+	table.clear(MacroPoints)
+	local filesOk, all = pcall(listfiles)
+	if not filesOk or type(all) ~= "table" then return "listfiles failed" end
+	local latest, latestName = nil, nil
+	for _, f in ipairs(all) do
+		if typeof(f) == "string" and f:sub(1, #MACRO_FILE_PREFIX + 0) == MACRO_FILE_PREFIX or (typeof(f) == "string" and f:find(MACRO_FILE_PREFIX, 1, true) and f:sub(-5) == ".json") then
+			latest = f
+		end
+	end
+	if not latest then return "No macro file found" end
+	latestName = latest
+	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(latestName)) end)
+	if not ok or type(data) ~= "table" or type(data.Points) ~= "table" then return "Bad macro file" end
+	for _, pt in ipairs(data.Points) do
+		if type(pt) == "table" and pt[1] and pt[2] and pt[3] then
+			table.insert(MacroPoints, CFrame.new(pt[1], pt[2], pt[3]))
+		end
+	end
+	if #MacroPoints == 0 then return "No valid points in file" end
+	return ("Loaded %d pts"):format(#MacroPoints)
+end)
+
+SliderRow(Page2, "Macro Play Speed (x)", "MacroPlaySpeed", 0.5, 5, 21)
 
 -- Misc page: warnings, look & feel, saving, players, servers
 ToggleBtn(Page3, "Lag Warning", "LagWarn", 7)
@@ -2639,9 +3119,10 @@ local function InstallV4()
 			else
 				TimerLabel.Text = ("Timer: %02d:%02d"):format(math.floor(left / 60), math.floor(left % 60))
 			end
-		else
-			TimerLabel.Text = "Timer: idle"
-		end
+			else
+				TimerLabel.Text = "Timer: idle"
+			end
+
 		if States.BreakRemind and now - lastBreak >= Sliders.BreakMin * 60 then
 			lastBreak = now
 			Notify("Time for a short break!", Theme.AccentAlt)
@@ -3127,6 +3608,7 @@ local function InstallV5()
 	local ctx = {now = 0, dt = 0, char = nil, hum = nil, root = nil, cam = nil}		local RebindActive = false -- Keybind editor đang chờ gõ phím (mục 136); [7] dùng chung cờ với JHFlags
 		local PlayEmote -- [8] khai báo trước để đợt B (emote wheel) dùng được; gán thật trong đợt D
 	local FavRefresh = nil     -- làm mới danh sách Yêu thích (mục 125)
+	local GroupBarUI = nil     -- [20] thanh 5 nhóm tầng 1 (UI 2 tầng), được tạo ở cuối InstallV5
 
 	-- ==================== ĐỢT A: Movement + Camera ====================
 	do
@@ -4751,7 +5233,7 @@ local function InstallV5()
 	-- ==================== ĐỢT C: UI + Settings ====================
 	do
 		-- --- key mới (118, 122, 126, 129 + cài đặt) ---
-		local CStates = {LightUI = false, TabIcons = false, Tooltips = true, Ripple = false}
+		local CStates = {LightUI = false, TabIcons = false, Tooltips = true, Ripple = false, ThemeAuto = false}
 		for k, v in pairs(CStates) do
 			if States[k] == nil then States[k] = v end
 		end
@@ -5181,12 +5663,18 @@ local function InstallV5()
 			local key = tostring(math.floor(vs.X)) .. "x" .. tostring(math.floor(vs.Y)) .. ":" .. tostring(touch)
 			if key == respKey then return end
 			respKey = key
-			-- tab cao >= 36px trên mobile, trang trượt xuống cho khớp
-			TabBar.Size = UDim2.new(1, -20, 0, touch and 42 or 34)
-			for _, p in ipairs(Pages) do
-				p.Position = UDim2.new(0, 10, 0, touch and 100 or 92)
-				p.Size = UDim2.new(1, -20, 1, -(touch and 104 or 96))
-			end
+		-- tab cao >= 36px trên mobile, trang trượt xuống cho khớp
+		-- [20] UI 2 tầng: GroupBar (tầng 1, 5 nhóm) + TabBar (tầng 2, tab con)
+		TabBar.Size = UDim2.new(1, -20, 0, touch and 26 or 22)
+		TabBar.Position = UDim2.new(0, 10, 0, touch and 112 or 108)
+		if GroupBarUI then
+			GroupBarUI.Size = UDim2.new(1, -20, 0, touch and 42 or 36) -- mobile đủ cao >= 40px
+			GroupBarUI.Position = UDim2.new(0, 10, 0, touch and 74 or 70)
+		end
+		for _, p in ipairs(Pages) do
+			p.Position = UDim2.new(0, 10, 0, touch and 142 or 132)
+			p.Size = UDim2.new(1, -20, 1, -(touch and 146 or 136))
+		end
 		end
 
 		-- ===== 136: trình chỉnh phím tắt =====
@@ -5471,6 +5959,7 @@ local function InstallV5()
 			return "Da fit man hinh!"
 		end)
 		ToggleBtn(PageSet, "Light Theme", "LightUI", 5)
+		ToggleBtn(PageSet, "Theme Auto (6-18h Light, còn lại Dark)", "ThemeAuto", 5.5)
 		ToggleBtn(PageSet, "Tab Icons", "TabIcons", 6)
 		ToggleBtn(PageSet, "Tooltips", "Tooltips", 7)
 		ToggleBtn(PageSet, "Ripple Effect", "Ripple", 8)
@@ -5660,6 +6149,7 @@ local function InstallV5()
 
 		-- dịch thêm các row mới của v4.1
 		LangVI["light theme"] = "Theme Sáng"
+		LangVI["theme auto (6-18h light, còn lại dark)"] = "Theme tự theo giờ (6-18h Sáng)"
 		LangVI["tab icons"] = "Icon tab"
 		LangVI["tooltips"] = "Tooltip giải thích"
 		LangVI["ripple effect"] = "Hiệu ứng ripple"
@@ -5684,6 +6174,85 @@ local function InstallV5()
 		end
 		table.insert(Drivers, CDriver)
 
+		-- ===== [17] Theme Auto theo giờ hệ thống (lựa chọn thứ 3 ngoài Dark/Light) =====
+		-- Mỗi phút kiểm os.date("%H"): 6..17 giờ -> Light, còn lại -> Dark. Chỉ auto khi
+		-- bật toggle ThemeAuto VÀ người dùng chưa chủ động bật LightUI (không ghi đè chọn thủ công).
+		do
+			local lastAutoHour = -1
+			table.insert(Slows, function(now)
+				if not States.ThemeAuto then return end
+				local okH, h = pcall(function() return tonumber(os.date("%H")) end)
+				if not okH or type(h) ~= "number" then return end
+				if h == lastAutoHour then return end -- chỉ đổi khi qua giờ mới
+				lastAutoHour = h
+				local wantLight = (h >= 6 and h < 18)
+				if wantLight ~= States.LightUI then
+					States.LightUI = wantLight
+					SetLightUI(wantLight)
+					Notify(("Theme Auto: %s (%02d:00)"):format(wantLight and "Light" or "Dark", h), Theme.AccentAlt)
+				end
+			end)
+		end
+
+		-- ===== [18] tổng thời gian chơi trong ngày (cộng dồn qua nhiều lần vào game) =====
+		-- File riêng JumpHub_Playtime.json; cộng dồn mỗi 15 giây; đổi ngày (theo os.date) thì reset.
+		do
+			local PLAYTIME_FILE = "JumpHub_Playtime.json"
+			local function todayKey()
+				return os.date("%Y-%m-%d")
+			end
+			local playToday = 0
+			do -- nạp tổng của hôm nay (nếu file còn cùng ngày)
+				local okR, data = pcall(function()
+					if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" or not isfile(PLAYTIME_FILE) then return nil end
+					return HttpService:JSONDecode(readfile(PLAYTIME_FILE))
+				end)
+				if okR and type(data) == "table" and data.Day == todayKey() and type(data.Seconds) == "number" then
+					playToday = data.Seconds
+				end
+			end
+			local function savePlaytime()
+				pcall(function()
+					if typeof(writefile) == "function" then
+						writefile(PLAYTIME_FILE, HttpService:JSONEncode({Day = todayKey(), Seconds = math.floor(playToday + 0.5)}))
+					end
+				end)
+			end
+			local sessionMark, flushedDay, lastFlush = tick(), todayKey(), 0
+			table.insert(Slows, function(now)
+				if todayKey() ~= flushedDay then -- nửa đêm: reset, không cộng thêm của ngày cũ
+					flushedDay = todayKey()
+					playToday = 0
+				end
+				playToday = playToday + (now - sessionMark)
+				sessionMark = now
+				if now - lastFlush >= 15 then -- ghi file 1 lần mỗi 15s, không quá tốn I/O
+					lastFlush = now
+					savePlaytime()
+				end
+			end)
+			 table.insert(LateInit, function()
+			-- state hiển thị: nối HUD "Play Time Today" vào widget Session Time có sẵn (cùng HUDLabel của v4.0)
+			local function addHudLine()
+				if not States.HUDPlayToday then return end
+				local playerGui = PlayerGui
+				local hud = playerGui:FindFirstChild("JumpHubHUD")
+				local lbl = hud and hud:FindFirstChildOfClass("TextLabel")
+				if lbl and lbl.Text ~= "" and lbl.Text:find("Session:") and not lbl.Text:find("Play:") then
+					local s = math.floor(playToday + 0.5)
+					lbl.Text = lbl.Text .. ("\nPlay: %d:%02d:%02d"):format(math.floor(s / 3600), math.floor(s / 60) % 60, s % 60)
+				end
+			end
+			local slow4 = 0
+			table.insert(Slows, function()
+				slow4 += 1
+				if States.HUDPlayToday then addHudLine() end
+			end)
+			Tips["play time today (sums all sessions)"] = "Tổng thời gian hub đã mở trong ngày (cộng dồn nhiều lần vào game; tự reset khi sang ngày mới). File JumpHub_Playtime.json — cần executor có writefile."
+			ToggleBtn(Pg("HUD"), "Play Time Today (sums all sessions)", "HUDPlayToday", 19)
+		end)
+		end
+
 		local langTick = 0
 		table.insert(Slows, function(now, c)
 			ApplyResponsive()
@@ -5704,6 +6273,12 @@ local function InstallV5()
 			refreshLog()
 			attachTips()
 			attachStars()
+			-- [20] mặc định mở tab chứa danh sách Yêu thích nếu Yêu thích có ít nhất 1 mục;
+			-- rỗng thì vẫn mở Move như cũ (Show(Page1) lúc đầu file)
+			if #Favorites > 0 and FavRefresh then
+				local setPage = Pg("Set")
+				if setPage and setPage ~= CurrentPage then Show(setPage) end
+			end
 		end)
 	end
 
@@ -6188,19 +6763,38 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
--- Auto Walk: keep moving forward relative to the camera.
--- It must be applied in PreSimulation (before the physics step), NOT Heartbeat:
--- Roblox's own PlayerModule writes the humanoid's move direction from a
--- RenderStepped callback (a zero vector whenever no movement key is held), and
--- Heartbeat fires AFTER physics - so a Move() issued there never affected the
--- current step and was overwritten by the next control-module update before the
--- next one. That is why the toggle used to do nothing. PreSimulation fires after
--- the control module and before physics, so our direction is the last one written.
+-- Auto Walk: keep moving forward relative to the camera via AssemblyLinearVelocity
+-- (the same vector approach Fly/Dash use), NOT via hum:Move(). Even written in
+-- PreSimulation, a Move() call can still lose the race against Roblox's own
+-- PlayerModule (it writes MoveDirection from RenderStepped with a zero vector when
+-- no key is held). Directly setting the root's linear velocity every PreSimulation
+-- (right before physics) cannot be cancelled that way - the physics step consumes
+-- exactly the velocity we wrote. WalkSpeed is used as the magnitude and the direction
+-- is the camera's flat look vector, matching UpdateFly's convention.
+local autoWalkWasOn = false -- set velocity back to zero right after the toggle turns off
 RunService.PreSimulation:Connect(function()
-	if not States.AutoWalk or States.FreeCam then return end
-	local hum = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
-	if hum and hum.Health > 0 then
-		hum:Move(Vector3.new(0, 0, -1), true)
+	local char = Player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if States.AutoWalk and not States.FreeCam and root then
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if hum and hum.Health > 0 then
+			local cam = workspace.CurrentCamera
+			local flatLook = cam and Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z) or Vector3.new()
+			if flatLook.Magnitude > 0.001 then
+				flatLook = flatLook.Unit
+				root.AssemblyLinearVelocity = flatLook * math.max(Sliders.WalkSpeed, 1)
+				autoWalkWasOn = true
+			elseif autoWalkWasOn then
+				-- camera looking straight up/down: hold position instead of drifting
+				root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+			end
+			return
+		end
+	end
+	if autoWalkWasOn then
+		autoWalkWasOn = false
+		-- toggle just turned off (or character died): stop immediately, no leftover momentum
+		if root and root.Parent then root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end
 	end
 end)
 
