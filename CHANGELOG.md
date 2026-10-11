@@ -108,6 +108,31 @@ Toàn bộ sửa lỗi vẫn nằm trong `InstallV5()` (trừ `ExpandedSize`, `S
 ### Chưa test trong runtime (lô này)
 - Auto Walk bằng `AssemblyLinearVelocity` (ở PreSimulation), Macro Play/teleport tuần tự, PlayTime cộng dồn qua ngày, Waypoint save/load qua file riêng, Theme Auto đổi sang Light/Dark vào 6/18h, Panic F12 trên cada loại game, UI 2 tầng với cả GroupBar lẫn 12-13 tab con (trên mobile 42px, scroll slider...). Môi trường dev (sandbox) không có Roblox/executor, không test được runtime — checklist test ở lô trước vẫn áp dụng, thêm lô này.
 
+### [21] FIX RUNTIME NGHIÊM TRỌNG: "attempt to index nil with 'Parent'" làm mất toàn bộ nút UI — XONG (10/10/2026)
+**Root cause được chứng minh, không phỏng đoán:**
+- `luau-analyze` báo chính xác: `JumpHubClient.lua(365,2): TypeError: Unknown global 'SearchBox'` + `JumpHubClient.lua(474,7): LocalShadow: Variable 'SearchBox' shadows a global variable used at line 365`.
+- Block `[20]` (UI 2 tầng) trước đây được đặt ở **file-scope ngay sau `print("[JumpHub] UI fully built, Show(Page1) called")`**, nhưng `SearchBox` là `local` chỉ được khai báo ở **dòng 474** (sau đó) → lúc chạy dòng 365 `SearchBox.Parent = Main`, `SearchBox` là global nil → `attempt to index nil with 'Parent'`.
+- Vị trí crash khớp 100% báo cáo runtime: xảy ra NGAY SAU print `[JumpHub] UI fully built, Show(Page1) called`; vì script chết tại file-scope (ngoài mọi pcall) nên toàn bộ code SAU dòng 365 KHÔNG BAO GIỜ chạy. **Thứ tự thực thi thực tế (bản lỗi 35c8eb4_RULE: thứ tự dòng trong file = thứ tự chạy)**:
+  - dòng 275-300: `Tab1..Tab5 = CreateTab(...)` → **đã chạy xong trước crash** → 5 tab phẳng masih hiện trên màn hình (khớp ảnh user).
+  - dòng 323: `NewPage()` tạo 5 ScrollingFrame RỖNG (`Page1..Page5`) → **đã chạy** → có 5 page trống trắng.
+  - dòng 365: CRASH → mọi thứ SAU dòng đó chết.
+  - dòng 699+ (ToggleBtn/ActionBtn/SliderRow(Page2, "No Clip"/"Fly"/Slide"...)) → **CHƯA TỪNG được chạy**: nút Page2 (và mọi tab khác) KHÔNG TỒN TẠI, không phải "tạo rồi mất" → đúng ảnh tab Player trống hoàn toàn.
+  - dòng ~3431/6622: `pcall(InstallV4)` / `pcall(InstallV5)` chưa chạy → không thấy print "v4/v4.1 extension installed", mất toàn bộ extension.
+- **Không phải lỗi obfuscate**: file gốc và main.lua lỗi giống hệt nhau như user test; đã xác minh `main.lua` bản lỗi chứa chính block `[20]` với `SearchBox.Parent=HNO3` (SearchBox là tên biến đã đổi tên). Cũng **không phải** lỗi .Parent của RunSearch/RestoreSearchRows/ApplyLang (các hàng search có guard `e.row.Parent ~= target` từ trước; ApplyLang không gán .Parent) — lỗi duy nhất là **thứ tự khai báo** block [20].
+
+**Giải pháp (không rollback tính năng):**
+- Chuyển toàn bộ block [20] thành hàm `BuildGroupBar()` đặt cạnh khai báo `SearchBox` (sau khi `SearchBox`/`RunSearch`/`RestoreSearchRows` đã tồn tại) — dùng đúng thay đổi code đã viết, KHÔNG tự viết lại.
+- `GroupBarUI` nâng thành upvalue cấp file (dùng chung với `ApplyResponsive` của InstallV5); xóa `local GroupBarUI = nil` nội bộ InstallV5 (trước đây sẽ đè mất biến).
+- InstallV5 gọi `BuildGroupBar()` ở **cuối InstallV5, sau vòng LateInit** (`pcall(BuildGroupBar)`) → mọi tab của v4.0/V4/V5 đã đăng ký trong `TabPageMap` khi nameToPage map → không bỏ sót nhóm; lỗi init được `pcall` bắt + `Log()` vào tab Set và `warn()`.
+- Guard `.Parent` mới trong `RestoreSearchRows`/`RunSearch`: `if e.row and e.row.Parent and ...` (phòng row bị destroy giữa phiên).
+
+**Verify không chỉ compile (đối chiếu số lượng widget theo code thực tế):**
+- Parse tĩnh toàn bộ `JumpHubClient.lua` đếm chính xác số lệnh tạo widget (ToggleBtn/SliderRow/ActionBtn/Info5) mỗi page: Page1=16, **Page2=23** (No Clip/Fly/FlySpeed/Speed Climb/Hover/Slots/Waypoint×4/Auto Walk/AntiFall/ClickTP/DashButton/DashPower/Dash Forward/Quick Heal/Macro×5), Page3=15, Page4=23, PG_Set=26 (nhóm lớn nhất). Tổng 232 lệnh gọi — số này chính là số widget dự kiến hiển thị sau khi sửa.
+- Mô phỏng runtime bằng lua5.1 với Roblox stub (Instance/UDim2/Enum/Color3/TweenService/Players...): chạy toàn bộ phần prelude (1-1233) KHÔNG crash, phát sinh Page1..Page5 + 5 tabs + 36 hàng SearchRegistry — cùng số lượng khớp parse tĩnh cho scope đã chạy.
+- Thân `BuildGroupBar()` chép y nguyên từ source đã sửa, chạy bằng luau thật (exit 0): SearchBox.Parent == Main PASSED; JH_GroupBar gắn vào Main PASSED; đúng **5 nút nhóm** (Movement/Visual/Performance/Info/Settings) PASSED; Show(Page1)+GroupShower (highlight) và Show(Page5) hai chiều PASSED.
+- Sau đó: luau-compile exit 0, sh tools/build.sh exit 0 → main.lua 194.416 byte (sha1 `1a2111e4ae5ac095332bd9cb10097bb31f482663`), luau-compile main.lua exit 0, luau-analyze KHÔNG còn Unknown global 'SearchBox'.
+- **Chưa test runtime trong game** (sandbox không có Roblox/executor) — đẩy lên nhánh riêng `fix/ui-parent-bug` để user test trực tiếp, chưa merge vào main cho tới khi user xác nhận OK.
+
 ## Chưa được test trong game (nói thật)
 Môi trường không có Roblox/executor, **chưa chạy thử runtime**. Đã kiểm tra bằng công cụ chính thức của Luau:
 - `luau-compile` (bản chính thức): **SYNTAX OK** exit 0 toàn file.

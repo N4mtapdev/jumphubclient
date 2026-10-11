@@ -327,7 +327,7 @@ print("[JumpHub] 5 pages created OK")
 
 local CurrentPage = Page1
 local RunSearch, RestoreSearchRows -- assigned once the search registry exists (below)
-local GroupShower -- [20] hàm cập nhật UI 2 tầng (gán ở GroupBar bên dưới)
+local GroupShower, GroupBarUI -- [20] GroupBar dung muon boi BuildGroupBar (goi cuoi InstallV5)
 
 local function Show(target)
 	CurrentPage = target
@@ -356,11 +356,65 @@ end
 Show(Page1)
 print("[JumpHub] UI fully built, Show(Page1) called")
 
--- ================= [20] UI 2 TẠNG: 5 NHÓM TẦNG 1 + TAB CON TẦNG 2 =================
--- Tầng 1 = GroupBar (5 nút nhóm lớn, đủ cao bấm bằng ngón tay trên mobile).
--- Tầng 2 = TabBar có sẵn (Giờ LÀ tab con, chỉ hiện khi nhóm tương ứng được chọn).
--- Nội dung trong từng trang KHÔNG đổi — chỉ đổi cách điều hướng.
-do
+
+-- ================= TOGGLE BUTTON CREATOR =================
+local ToggleRefreshers = {} -- stateKey -> refresh function, so Restore/reset buttons can sync switch visuals
+local SliderRefreshers = {} -- [4] sliderKey -> refresh function: làm mới UI sau reset/load/import
+local function RefreshAllSliders() -- [4] gọi sau resetAll/applyBundle/loadLightPreset/LoadKeys
+	for _, f in pairs(SliderRefreshers) do pcall(f) end
+end
+local BatteryPrev = {}     -- values remembered by Battery Saver so turning it off restores them
+
+-- Search registry: every row (toggle/slider/button) registers itself so the "Find" tab
+-- can borrow matching rows and give them back afterwards.
+local SearchRegistry = {}
+local function RegisterSearch(row, name, home)
+	table.insert(SearchRegistry, {row = row, name = tostring(name):lower(), home = home})
+end
+
+local SearchBox = Instance.new("TextBox")
+SearchBox.Size = UDim2.new(1, 0, 0, 36)
+SearchBox.LayoutOrder = -100
+SearchBox.BackgroundColor3 = Theme.Panel
+SearchBox.BorderSizePixel = 0
+SearchBox.PlaceholderText = "Type a feature name..."
+SearchBox.PlaceholderColor3 = Theme.SubText
+SearchBox.Text = ""
+SearchBox.ClearTextOnFocus = false
+SearchBox.Font = Enum.Font.GothamMedium
+SearchBox.TextSize = 13
+SearchBox.TextColor3 = Theme.Text
+SearchBox.Parent = Page5
+Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0, 8)
+
+RestoreSearchRows = function()
+	for _, e in ipairs(SearchRegistry) do
+		if e.row and e.row.Parent and e.row.Parent ~= e.home then e.row.Parent = e.home end
+	end
+end
+
+RunSearch = function()
+	local q = SearchBox.Text:lower()
+	for _, e in ipairs(SearchRegistry) do
+		local hit = q ~= "" and e.name:find(q, 1, true) ~= nil
+		local target = hit and Page5 or e.home
+		if e.row and e.row.Parent and e.row.Parent ~= target then e.row.Parent = target end
+	end
+end
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	if CurrentPage == Page5 then RunSearch() end
+end)
+
+-- ================= [20] UI 2 TANG (FIX RUNTIME - 5 NHOM TANG 1 + TAB CON TANG 2) =================
+-- ROOT CAUSE da chot (10/10/2026): block nay truoc day dung O FILE-SCOPE TRUOC dong
+-- `local SearchBox = Instance.new("TextBox")` va gan `SearchBox.Parent = Main` -> SearchBox
+-- la global nil -> "attempt to index nil with 'Parent'" ngay sau print [JumpHub] UI fully built;
+-- script chet truoc khi InstallV4/InstallV5 duoc goi -> mat moi nut + khong in "v4 extension installed".
+-- Gio: dung SAU khi SearchBox/RunSearch/RestoreSearchRows da khai bao, va DO InstallV5 goi o
+-- cuoi (SAU khi moi tab cua V4/V5 da dang ky vao TabPageMap) de nameToPage du ten tab.
+
+local function BuildGroupBar()
 	-- khoảng cách search (giữa Top bar và GroupBar)
 	SearchBox.Parent = Main
 	SearchBox.Position = UDim2.new(0, 10, 0, 48)
@@ -454,56 +508,8 @@ do
 		end
 	end)
 	GroupShower(Page1)
+	return GroupBarUI
 end
-
--- ================= TOGGLE BUTTON CREATOR =================
-local ToggleRefreshers = {} -- stateKey -> refresh function, so Restore/reset buttons can sync switch visuals
-local SliderRefreshers = {} -- [4] sliderKey -> refresh function: làm mới UI sau reset/load/import
-local function RefreshAllSliders() -- [4] gọi sau resetAll/applyBundle/loadLightPreset/LoadKeys
-	for _, f in pairs(SliderRefreshers) do pcall(f) end
-end
-local BatteryPrev = {}     -- values remembered by Battery Saver so turning it off restores them
-
--- Search registry: every row (toggle/slider/button) registers itself so the "Find" tab
--- can borrow matching rows and give them back afterwards.
-local SearchRegistry = {}
-local function RegisterSearch(row, name, home)
-	table.insert(SearchRegistry, {row = row, name = tostring(name):lower(), home = home})
-end
-
-local SearchBox = Instance.new("TextBox")
-SearchBox.Size = UDim2.new(1, 0, 0, 36)
-SearchBox.LayoutOrder = -100
-SearchBox.BackgroundColor3 = Theme.Panel
-SearchBox.BorderSizePixel = 0
-SearchBox.PlaceholderText = "Type a feature name..."
-SearchBox.PlaceholderColor3 = Theme.SubText
-SearchBox.Text = ""
-SearchBox.ClearTextOnFocus = false
-SearchBox.Font = Enum.Font.GothamMedium
-SearchBox.TextSize = 13
-SearchBox.TextColor3 = Theme.Text
-SearchBox.Parent = Page5
-Instance.new("UICorner", SearchBox).CornerRadius = UDim.new(0, 8)
-
-RestoreSearchRows = function()
-	for _, e in ipairs(SearchRegistry) do
-		if e.row.Parent ~= e.home then e.row.Parent = e.home end
-	end
-end
-
-RunSearch = function()
-	local q = SearchBox.Text:lower()
-	for _, e in ipairs(SearchRegistry) do
-		local hit = q ~= "" and e.name:find(q, 1, true) ~= nil
-		local target = hit and Page5 or e.home
-		if e.row.Parent ~= target then e.row.Parent = target end
-	end
-end
-
-SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	if CurrentPage == Page5 then RunSearch() end
-end)
 
 local function ToggleBtn(parent, label, stateKey, order)
 	local row = Instance.new("Frame", parent)
@@ -3608,7 +3614,6 @@ local function InstallV5()
 	local ctx = {now = 0, dt = 0, char = nil, hum = nil, root = nil, cam = nil}		local RebindActive = false -- Keybind editor đang chờ gõ phím (mục 136); [7] dùng chung cờ với JHFlags
 		local PlayEmote -- [8] khai báo trước để đợt B (emote wheel) dùng được; gán thật trong đợt D
 	local FavRefresh = nil     -- làm mới danh sách Yêu thích (mục 125)
-	local GroupBarUI = nil     -- [20] thanh 5 nhóm tầng 1 (UI 2 tầng), được tạo ở cuối InstallV5
 
 	-- ==================== ĐỢT A: Movement + Camera ====================
 	do
@@ -6613,6 +6618,16 @@ local function InstallV5()
 	for _, fn in ipairs(LateInit) do
 		local ok, err = pcall(fn)
 		if not ok then Log("init: " .. tostring(err)) end
+	end
+
+	-- ===== [20] dung GroupBar (UI 2 tang) SAU CUNG, khi moi tab V4/V5 da dang ky =====
+	-- pcall bat loi + Log() co san: loi init UI khong bao gio duoc phep giet script goc nua.
+	if BuildGroupBar then
+		local okG, errG = pcall(BuildGroupBar)
+		if not okG then
+			Log("groupbar: " .. tostring(errG))
+			warn("[JumpHub] [20] GroupBar build failed: " .. tostring(errG))
+		end
 	end
 
 	Show(CurrentPage)
