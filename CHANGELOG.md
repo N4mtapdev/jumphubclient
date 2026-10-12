@@ -133,6 +133,14 @@ Toàn bộ sửa lỗi vẫn nằm trong `InstallV5()` (trừ `ExpandedSize`, `S
 - Sau đó: luau-compile exit 0, sh tools/build.sh exit 0 → main.lua 194.416 byte (sha1 `1a2111e4ae5ac095332bd9cb10097bb31f482663`), luau-compile main.lua exit 0, luau-analyze KHÔNG còn Unknown global 'SearchBox'.
 - **Chưa test runtime trong game** (sandbox không có Roblox/executor) — đẩy lên nhánh riêng `fix/ui-parent-bug` để user test trực tiếp, chưa merge vào main cho tới khi user xác nhận OK.
 
+### [22] Nút ảo PANIC cho mobile (bổ sung cho [16]) — XONG (12/10/2026)
+- **Vấn đề**: Panic [16] chỉ gán phím F12 → trên MOBILE không có bàn phím vật lý nên tính năng này KHÔNG dùng được.
+- **Giải pháp**: nút ảo "PANIC" (TextButton 44x44, chữ GothamBold 10, nền Theme.Danger + UIStroke Danger, bo tròn), **chỉ tạo khi `UIS.TouchEnabled = true`** (thiết bị cảm ứng) — PC không thấy nút này.
+- **Vị trí**: goc TREN PHAI màn hình `UDim2.new(1, -56, 0, 12)` — không đè FloatBtn "JH" (trái, 0.35 scale), DashFloat (trái, 0.35+54), WidgetStack (dưới JH), MovePad/FreePad (phải-dưới), FlyPad (phải 0.55), Stamina bar (giữa đáy). `Draggable = true` để kéo đi nếu game có UI trùng chỗ.
+- **Đúng 1 logic Panic duy nhất**: file-scope `local PanicFire` (dòng 331) được gán `PanicFire = PanicAll` ngay trong block Panic [16] (dòng ~2328) — nút ảo `MouseButton1Click` gọi `pcall(PanicFire)` → gọi ĐÚNG hàm `PanicAll()` hiện có (tắt toàn bộ State, hủy macro, giữ HUD + cài đặt UI, zero velocity) — KHÔNG có hàm Panic thứ 2. Nếu `PanicFire` chưa được gán (block [16] chưa chạy) thì `warn()` thay vì crash.
+- **F12 giữ nguyên song song** trên PC: `UIS.InputBegan` handler cũ không đổi.
+- Gate: luau-compile --binary JumpHubClient.lua exit 0; sh tools/build.sh exit 0 → main.lua 195.054 byte (sha1 `071277d217fa7f9f4041dbb09d001727fae2d03b`); luau-compile main.lua exit 0; luau-analyze không còn Unknown global PanicFire/PanicBtn.
+
 ## Chưa được test trong game (nói thật)
 Môi trường không có Roblox/executor, **chưa chạy thử runtime**. Đã kiểm tra bằng công cụ chính thức của Luau:
 - `luau-compile` (bản chính thức): **SYNTAX OK** exit 0 toàn file.

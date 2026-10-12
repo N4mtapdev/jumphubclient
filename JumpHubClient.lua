@@ -328,6 +328,7 @@ print("[JumpHub] 5 pages created OK")
 local CurrentPage = Page1
 local RunSearch, RestoreSearchRows -- assigned once the search registry exists (below)
 local GroupShower, GroupBarUI -- [20] GroupBar dung muon boi BuildGroupBar (goi cuoi InstallV5)
+local PanicFire -- [16] PanicAll duoc gan o block PANIC (~dong 2290); nut ao PANIC (mobile) goi chung dung 1 logic, khong co Panic thu 2
 
 local function Show(target)
 	CurrentPage = target
@@ -1579,6 +1580,41 @@ DashStroke.Color = Theme.AccentAlt
 DashStroke.Thickness = 2
 DashFloat.MouseButton1Click:Connect(DoDash)
 
+-- ================= [16b] NUT AO PANIC CHO MOBILE =================
+-- F12 la ban phim vat ly — mobile khong co. Nut nay chi tao khi UIS.TouchEnabled,
+-- bam = goi DUNG PanicAll() cua [16] (cung logic, khong co Panic thu 2).
+-- Vi tri goc TREN PHAI: khong de JH/DASH (trai, 0.35 scale), WidgetStack (duoi JH),
+-- MovePad/FreePad (phai duoi), FlyPad (phai 0.55), stamina bar (giua day).
+-- Draggable = keo duoc neu game nay co UI trung goc nay.
+if UIS.TouchEnabled then
+	local PanicBtn = Instance.new("TextButton")
+	PanicBtn.Size = UDim2.new(0, 44, 0, 44)
+	PanicBtn.Position = UDim2.new(1, -56, 0, 12)
+	PanicBtn.Text = "PANIC"
+	PanicBtn.Font = Enum.Font.GothamBold
+	PanicBtn.TextSize = 10
+	PanicBtn.TextColor3 = Theme.Text
+	PanicBtn.BackgroundColor3 = Theme.Danger
+	PanicBtn.BackgroundTransparency = 0.15
+	PanicBtn.BorderSizePixel = 0
+	PanicBtn.AutoButtonColor = false
+	PanicBtn.Active = true
+	PanicBtn.Draggable = true
+	PanicBtn.Parent = ToggleGui
+	Instance.new("UICorner", PanicBtn).CornerRadius = UDim.new(1, 0)
+	local PanicStroke = Instance.new("UIStroke", PanicBtn)
+	PanicStroke.Color = Theme.Danger
+	PanicStroke.Thickness = 2
+	PanicBtn.MouseButton1Click:Connect(function()
+		-- goi chung PanicAll cua [16] — khong tao logic Panic thu 2
+		if PanicFire then
+			pcall(PanicFire)
+		else
+			warn("[JumpHub] PanicFire chua duoc gan (block [16] chua chay)")
+		end
+	end)
+end
+
 UIS.InputBegan:Connect(function(input, processed)
 	if processed or not States.Hotkeys then return end
 	if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == KeyBinds.Dash then
@@ -2289,6 +2325,7 @@ end
 			if root and root.Parent then root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end
 			Notify("PANIC! Tat toan bo tinh nang (F12)", Theme.Danger)
 		end
+		PanicFire = PanicAll -- nut ao PANIC tren mobile goi dung ham nay (khong tao logic Panic thu 2)
 		UIS.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.F12 then
 				PanicAll() -- chay ke ca processed: phai tat nap chong
